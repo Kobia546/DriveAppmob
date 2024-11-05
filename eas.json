@@ -1,0 +1,38 @@
+{
+  "cli": {
+    "version": ">= 12.6.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "gradleCommand": ":app:assembleDebug",
+        "buildType": "apk"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "gradleCommand": ":app:assembleRelease",
+        "buildType": "apk",
+        "cache": {
+          "key": "gradle-{{ hashFile('android/build.gradle') }}-{{ hashFile('android/app/build.gradle') }}"
+        }
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "android": {
+        "gradleCommand": ":app:assembleRelease",
+        "cache": {
+          "key": "gradle-{{ hashFile('android/build.gradle') }}-{{ hashFile('android/app/build.gradle') }}"
+        }
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

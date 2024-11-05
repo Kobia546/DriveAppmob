@@ -2,6 +2,57 @@
   "expo": {
     "name": "ProjetDriver",
     "slug": "ProjetDriver",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "notification": {
+      "icon": "./assets/Logo.png",
+      "color": "#ffffff"
+    },
+    "splash": {
+      "image": "./assets/Logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.projetdriver",
+      "config": {
+        "googleMapsApiKey": "AIzaSyBQivdVNxU7quHhW_ARw2VuXKmHVwXhNMk"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/Logo.png",
+        "backgroundColor": "#FFFFFF",
+        "googleServicesFile": "./google-services.json"
+      },
+      "package": "com.ProjetDriver",
+      "jsEngine": "hermes",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "FOREGROUND_SERVICE",
+        "NOTIFICATIONS"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyBQivdVNxU7quHhW_ARw2VuXKmHVwXhNMk"
+        }
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "57e70b0c-f485-44cc-bfb9-b6868dcbde3f"
+      }
+    }
   }
 }
