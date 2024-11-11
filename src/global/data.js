@@ -1,4 +1,4 @@
-export const filterData = [ {name:"Parking",image: require('../../assets/ride.png'), id:"0"},
+export const filterData = [ {name:"Parking",image: require('../../assets/Wavy_Bus-42_Single-05.jpg'), id:"0"},
     {name:"Services",image:require("../../assets/food.png"),id:"1"},
 //     {name:"Package",image:require("../../assets/package.png"),id:"2"},
     {name:"Conciergeries",image:require("../../assets/reserve.png"),id:"2"}

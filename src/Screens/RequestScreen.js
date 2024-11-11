@@ -6,12 +6,25 @@ import MapView, { PROVIDER_GOOGLE, Marker } from 'react-native-maps';
 import MapComponent from "../Compnents/MapComponent";
 import MapViewDirections from 'react-native-maps-directions';
 import axios from 'axios';
+import * as Notifications from 'expo-notifications';
+import { db, auth } from '../../firebaseConfig';
+import { doc, updateDoc } from 'firebase/firestore';
+import * as Device from 'expo-device';
 import { OriginContext, DestinationContext } from '../Contexts/contexts';
+
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const GOOGLE_MAPS_APIKEY = 'YOUR_API_KEY'; // Remplacez par votre clé API
 
+Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: false,
+      shouldSetBadge: true,
+    }),
+  });
+  
 export default function RequestScreen({ navigation }) {
     const { origin, dispatchOrigin } = useContext(OriginContext);
     const { destination, dispatchDestination } = useContext(DestinationContext);
@@ -96,6 +109,104 @@ export default function RequestScreen({ navigation }) {
     useEffect(() => {
         fetchAbidjanLocations();
     }, []);
+    const notificationListener = useRef();
+    const responseListener = useRef();
+
+    useEffect(() => {
+        registerForPushNotificationsAsync();
+        setUpNotificationListeners();
+
+        // Nettoyage lors du démontage du composant
+        return () => {
+            if (notificationListener.current) {
+                Notifications.removeNotificationSubscription(notificationListener.current);
+            }
+            if (responseListener.current) {
+                Notifications.removeNotificationSubscription(responseListener.current);
+            }
+        };
+    }, []);
+
+    const registerForPushNotificationsAsync = async () => {
+        if (!Device.isDevice) {
+            Alert.alert('Notification non disponible', 'Les notifications ne fonctionnent pas sur l\'émulateur');
+            return;
+        }
+
+        try {
+            const { status: existingStatus } = await Notifications.getPermissionsAsync();
+            let finalStatus = existingStatus;
+
+            if (existingStatus !== 'granted') {
+                const { status } = await Notifications.requestPermissionsAsync();
+                finalStatus = status;
+            }
+
+            if (finalStatus !== 'granted') {
+                Alert.alert('Erreur', 'Les notifications sont nécessaires pour recevoir les informations du chauffeur');
+                return;
+            }
+
+            // Obtenir le token Expo
+            const tokenData = await Notifications.getExpoPushTokenAsync({
+                projectId: '57e70b0c-f485-44cc-bfb9-b6868dcbde3f', // Remplacer par votre ID de projet Expo
+            });
+
+            // Sauvegarder le token dans Firestore pour l'utilisateur actuel
+            const userId = auth.currentUser?.uid;
+            if (userId) {
+                await updateDoc(doc(db, 'users', userId), {
+                    token: tokenData.data,
+                    lastUpdated: new Date()
+                });
+            }
+
+        } catch (error) {
+            console.error('Erreur lors de l\'enregistrement des notifications:', error);
+        }
+    };
+
+    const setUpNotificationListeners = () => {
+        // Écouteur pour les notifications reçues quand l'app est ouverte
+        notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
+            const { title, body, data } = notification.request.content;
+    
+            console.log("Notification reçue:", { title, body, data });
+    
+            if (data?.type === 'ORDER_ACCEPTED') {
+                // Afficher une alerte avec les informations du chauffeur
+                Alert.alert(
+                    title,
+                    body,
+                    [
+                        {
+                            text: 'OK',
+                            onPress: () => navigation.navigate('OrderTracking', {
+                                driverInfo: data.driverInfo,
+                                orderDetails: data.orderDetails
+                            })
+                        }
+                    ]
+                );
+            }
+        });
+    
+        // Écouteur pour quand l'utilisateur clique sur la notification
+        responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+            const { data } = response.notification.request.content;
+    
+            console.log("Notification cliquée:", { data });
+    
+            if (data?.type === 'ORDER_ACCEPTED') {
+                // Naviguer vers l'écran de suivi de commande
+                navigation.navigate('OrderTracking', {
+                    driverInfo: data.driverInfo,
+                    orderDetails: data.orderDetails
+                });
+            }
+        });
+    };
+    
 
     const handleSearch = (text, type) => {
         if (text.length > 1) {
@@ -153,13 +264,8 @@ export default function RequestScreen({ navigation }) {
             <View style={styles.view2}>
                 <TouchableOpacity>
                     <View style={styles.view3}>
-                        <Avatar
-                            rounded
-                            avatarStyle={{}}
-                            size={30}
-                            source={require('../../assets/blankProfilePic.jpg')}
-                        />
-                        <Text style={{ marginLeft: 5 }}>Pour Quelqu'un</Text>
+                        
+                        <Text style={{ marginLeft: "33%" }}>Services</Text>
                         <Icon
                             type="material-community"
                             name="chevron-down"

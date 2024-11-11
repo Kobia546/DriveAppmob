@@ -85,27 +85,59 @@ const AcceptOrderScreen = ({ route, navigation }) => {
     };
 
     const sendNotificationToClient = async (clientId, driverId) => {
-        const clientToken = await getUserPushToken(clientId);
-        const driverData = await getDoc(doc(db, 'drivers', driverId));
+        try {
+            // Récupérer le token du client
+            const clientToken = await getUserPushToken(clientId);
     
-        if (clientToken && driverData.exists()) {
-            const { name, phone } = driverData.data();  
-            sendNotification(
+            // Récupérer les données du chauffeur
+            const driverDoc = await getDoc(doc(db, 'drivers', driverId));
+    
+            if (!clientToken) {
+                console.warn("Token du client non trouvé");
+                return;
+            }
+    
+            if (!driverDoc.exists()) {
+                console.warn("Données du chauffeur non trouvées");
+                return;
+            }
+    
+            // Extraire les informations du chauffeur
+            const driverData = driverDoc.data();
+            const { name, phone } = driverData;
+    
+            // Créer le message de notification
+            const notificationMessage = `Votre course a été acceptée par ${name}. Numéro de téléphone: ${phone}`;
+    
+            // Log des données de la notification
+            console.log("Données de la notification:", {
+                token: clientToken,
+                title: 'Course acceptée !',
+                body: notificationMessage
+            });
+    
+            // Envoyer la notification
+            await sendNotification(
                 clientToken,
-                'Commande acceptée !',
-                message
+                'Course acceptée !',
+                notificationMessage
             );
-        } else {
-            console.warn("Impossible de récupérer les informations du client ou du chauffeur.");
+    
+        } catch (error) {
+            console.error("Erreur lors de l'envoi de la notification:", error);
+            throw error;
         }
     };
+    
     
     const sendNotification = async (token, title, body) => {
         const message = {
             to: token,
-            notification: {
-                title: title,
-                body: body,
+            sound: 'default',
+            title: title,
+            body: body,
+            data: {
+                type: 'ORDER_ACCEPTED'
             },
         };
     
@@ -113,22 +145,25 @@ const AcceptOrderScreen = ({ route, navigation }) => {
             const response = await fetch('https://exp.host/--/api/v2/push/send', {
                 method: 'POST',
                 headers: {
+                    'Accept': 'application/json',
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(message),
             });
     
             const data = await response.json();
+    
             if (response.ok) {
-                console.log("Notification envoyée au client avec succès:", data);
+                console.log("Notification envoyée avec succès:", data);
             } else {
-                console.error("Erreur lors de l'envoi de la notification:", data);
+                throw new Error("Erreur serveur lors de l'envoi de la notification");
             }
         } catch (error) {
-            console.error("Erreur lors de l'envoi de la notification:", error.message);
+            console.error("Erreur lors de l'envoi de la notification:", error);
+            throw error;
         }
     };
-
+    
     const handleReject = () => {
         navigation.goBack();
     };

@@ -12,6 +12,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import * as Notifications from 'expo-notifications';
 import { getFirestore, collection, addDoc, getDocs } from 'firebase/firestore';
 
+
 export default class MapComponent extends Component {
     constructor(props) {
         super(props);
@@ -24,6 +25,7 @@ export default class MapComponent extends Component {
             returnDate: null,
             showDepartureDatePicker: false,
             showReturnDatePicker: false,
+           
         };
     }
 
@@ -57,6 +59,10 @@ export default class MapComponent extends Component {
 
     componentDidUpdate(prevProps) {
         const { userOrigin, userDestination } = this.props;
+
+        if (userDestination && userDestination !== prevProps.userDestination) {
+            this.setState({ destinationSelected: true });
+        }
 
         if (
             userOrigin &&
@@ -124,7 +130,7 @@ export default class MapComponent extends Component {
             } else {
                 console.warn("Aucun token de chauffeur trouvé.");
             }
-
+            
              alert(`Commande enregistrée. Prix: ${this.calculatePrice(distance).toFixed(2)} CFA`);
 
             // navigation.navigate("Recherche");
@@ -219,7 +225,7 @@ export default class MapComponent extends Component {
 
     render() {
         const { userOrigin, userDestination } = this.props;
-        const { distance, isRoundTrip, isReserveLater, departureDate, returnDate, showDepartureDatePicker, showReturnDatePicker } = this.state;
+        const { distance, isRoundTrip, isReserveLater, departureDate, returnDate, showDepartureDatePicker, showReturnDatePicker,destinationSelected  } = this.state;
         const price = this.calculatePrice(distance); // Calculer le prix à afficher
 
         return (
@@ -260,7 +266,7 @@ export default class MapComponent extends Component {
                     )}
                 </MapView>
 
-                {distance > 0 && (
+                {destinationSelected && userDestination && userDestination.latitude !== null &&(
                     <View style={styles.bottomSheetContainer}>
                         <ScrollView showsVerticalScrollIndicator={false}>
                             <View style={styles.bottomSheetHeader}>
@@ -295,7 +301,7 @@ export default class MapComponent extends Component {
 
                                 <View style={styles.detailItem}>
                                     <Text style={{ fontSize: 14, color: '#666', marginLeft: 200 }}>Prix</Text>
-                                    <Text style={styles.priceValue}>{price.toFixed(2)} </Text>
+                                    <Text style={styles.priceValue}>{price.toFixed(0)}F </Text>
                                 </View>
                             </View>
 
