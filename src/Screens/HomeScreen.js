@@ -110,15 +110,15 @@ const HomeScreen = ({ navigation }) => {
     </Animated.View>
   );
 
-  const renderSearchButton = () => (
-    <TouchableOpacity
-      style={styles.searchButton}
-      onPress={() => navigation.navigate("RequestScreen", { state: 0 })}
-      activeOpacity={0.8}
-    >
-      <Text style={styles.searchButtonText}>Rechercher chauffeur</Text>
-    </TouchableOpacity>
-  );
+  // const renderSearchButton = () => (
+  //   <TouchableOpacity
+  //     style={styles.searchButton}
+  //     onPress={() => navigation.navigate("RequestScreen", { state: 0 })}
+  //     activeOpacity={0.8}
+  //   >
+  //     <Text style={styles.searchButtonText}>Rechercher chauffeur</Text>
+  //   </TouchableOpacity>
+  // );
 
   const renderServiceCard = ({ item }) => (
     <TouchableOpacity
@@ -196,7 +196,7 @@ const HomeScreen = ({ navigation }) => {
               <Text style={styles.heroText}>
                 Ils seront toujours présents pour vous aider
               </Text>
-              {renderSearchButton()}
+              {/* {renderSearchButton()} */}
             </View>
             <Image
               source={require('../../assets/uberCar.png')}

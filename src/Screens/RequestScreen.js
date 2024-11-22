@@ -251,27 +251,14 @@ export default function RequestScreen({ navigation }) {
 
     return (
         <View style={styles.container}>
-            <View style={styles.view1}>
-                <Icon
-                    type="material-community"
-                    name="arrow-left"
-                    color={colors.grey1}
-                    size={32}
-                    onPress={() => navigation.goBack()}
-                />
-            </View>
+           
 
             <View style={styles.view2}>
                 <TouchableOpacity>
                     <View style={styles.view3}>
                         
-                        <Text style={{ marginLeft: "33%" }}>Services</Text>
-                        <Icon
-                            type="material-community"
-                            name="chevron-down"
-                            color={colors.grey1}
-                            size={26}
-                        />
+                        <Text style={{ marginLeft: "21%",fontSize:25,fontWeight: 'bold',marginBottom: 20,top:20 }}>Reservation de course</Text>
+                      
                     </View>
                 </TouchableOpacity>
 
@@ -358,7 +345,8 @@ export default function RequestScreen({ navigation }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        paddingTop: parameters.statusBarHeight
+        paddingTop: parameters.statusBarHeight,
+        
     },
     mapContainer: {
         flex: 1,
@@ -399,7 +387,7 @@ const styles = StyleSheet.create({
     },
     view1: {
         position: "absolute",
-        top: 10,
+        top: 30,
         left: 12,
         height: 40,
         width: 40,
@@ -407,19 +395,24 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         justifyContent: "center",
         alignItems: "center",
-        marginTop: 10,
+      
+        marginTop: 19,
         zIndex: 10
     },
     view2: {
         backgroundColor: colors.white,
         zIndex: 4,
-        paddingBottom: 10
+        paddingBottom: 10,
+
+        
     },
     view3: {
         flexDirection: "row",
         alignItems: "center",
         paddingLeft: 10,
-        paddingVertical: 5
+        paddingVertical: 18,
+        
+        
     },
     view4: {
         flexDirection: "row",

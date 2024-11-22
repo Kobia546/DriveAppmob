@@ -1,21 +1,21 @@
 class User {
-  constructor(uid, email, username, cars, token) {
+  constructor(uid, contact, username, cars, token) {
     this.uid = uid;
-    this.email = email;
+    // Détermine si le contact est un email ou un numéro de téléphone
+    this.email = contact.includes('@') ? contact : '';
+    this.phone = !contact.includes('@') ? contact : '';
     this.username = username;
-    this.cars=cars;
-   
+    this.cars = cars;
     this.token = token;
     this.createdAt = new Date();
   }
-
  
   toFirestore() {
     return {
       uid: this.uid,
       email: this.email,
+      phone: this.phone,
       username: this.username,
-   
       cars: this.cars.map(car => ({
         carType: car.carType || null, 
         carPhoto: car.carPhoto || null,

@@ -1,118 +1,55 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, FlatList, TouchableOpacity, Dimensions } from 'react-native';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { auth, db } from '../../firebaseConfig'; // Assure-toi d'importer 'auth' pour obtenir l'utilisateur connecté
-import { colors } from "../global/style";
+import React from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity } from 'react-native';
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
-
-const DriverOrdersScreen = () => {
-  const [orders, setOrders] = useState([]);
-
-  useEffect(() => {
-    fetchAcceptedOrders();
-  }, []);
-
-  const fetchAcceptedOrders = async () => {
-    const userId = auth.currentUser.uid; // Récupère l'ID du chauffeur connecté
-    const q = query(
-      collection(db, 'orders'), 
-      where('status', '==', 'accepted'), 
-      where('driverId', '==', userId) // Filtre par ID du chauffeur
-    );
-    
-    const querySnapshot = await getDocs(q);
-    const acceptedOrders = [];
-    querySnapshot.forEach((doc) => {
-      acceptedOrders.push({ id: doc.id, ...doc.data() });
-    });
-    setOrders(acceptedOrders);
-  };
-
-  const renderOrder = ({ item }) => (
-    <TouchableOpacity style={styles.orderCard}>
-      <View style={styles.orderDetails}>
-        <Text style={styles.orderDestination}>{item.destination}</Text>
-        <Text style={styles.orderTime}>Durée estimée: {item.time}</Text>
-        <Text style={styles.orderPrice}>Prix: {item.price}€</Text>
-      </View>
-    </TouchableOpacity>
-  );
+const DriverOrdersScreen = ({ route }) => {
+  const { orders } = route.params;
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.headerTitle}>Commandes acceptées</Text>
-      {orders.length > 0 ? (
-        <FlatList
-          data={orders}
-          keyExtractor={item => item.id}
-          renderItem={renderOrder}
-          contentContainerStyle={styles.ordersList}
-        />
-      ) : (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>Aucune commande acceptée pour l'instant.</Text>
+    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+      <Text style={styles.title}>Toutes les courses</Text>
+      {orders.map((order) => (
+        <View key={order.id} style={styles.orderCard}>
+          <Text style={styles.orderInfo}>Destination: {order.destination}</Text>
+          <Text style={styles.orderInfo}>Prix: {order.price?.toLocaleString()} FCFA</Text>
+          <Text style={styles.orderInfo}>Distance: {order.distance?.toFixed(2)} km</Text>
+          <Text style={styles.orderInfo}>Durée: {order.duration} min</Text>
         </View>
-      )}
-    </View>
+      ))}
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.white,
-    paddingTop: 20,
+    backgroundColor: '#f5f5f5',
   },
-  headerTitle: {
+  contentContainer: {
+    padding: 16,
+  },
+  title: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: colors.black,
-    textAlign: 'center',
+    fontWeight: '600',
     marginBottom: 20,
-  },
-  ordersList: {
-    paddingHorizontal: 20,
+    color: '#2c3e50',
   },
   orderCard: {
-    backgroundColor: colors.white,
-    borderRadius: 15,
-    padding: 20,
-    marginVertical: 10,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowRadius: 4,
+    marginBottom: 12,
   },
-  orderDetails: {
-    justifyContent: 'center',
-  },
-  orderDestination: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.blue,
-    marginBottom: 5,
-  },
-  orderTime: {
+  orderInfo: {
     fontSize: 16,
-    color: colors.grey,
-  },
-  orderPrice: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.black,
-    marginTop: 10,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 18,
-    color: colors.grey,
+    color: '#2c3e50',
+    marginBottom: 4,
   },
 });
 
 export default DriverOrdersScreen;
+

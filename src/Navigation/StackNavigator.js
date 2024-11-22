@@ -15,6 +15,8 @@ import MapScreen from '../Screens/MapScreen';
 import ClientConfirmationScreen from '../Screens/ClientConfirmationScreen';
 import Parking from '../Screens/Parking';
 import Conciergerie from '../Screens/Conciergerie ';
+import DriverProfile from '../Screens/DriverProfile';
+import DriverOrdersScreen from '../Screens/DriverOrdersScreen';
 
 
 const Home= createStackNavigator();
@@ -35,6 +37,11 @@ export default function HomeStack(){
            <Home.Screen
            name='Parking'
            component={Parking}
+           options={{headerShown:false}}
+           />
+            <Home.Screen
+           name='ProfileScreen'
+           component={DriverProfile}
            options={{headerShown:false}}
            />
             <Home.Screen
@@ -69,7 +76,7 @@ export default function HomeStack(){
             />
              <Home.Screen
             name='DriverOrdersScreen'
-            component={DriverHomeScreen}
+            component={DriverOrdersScreen}
             options={{headerShown:false}}
             />
               <Home.Screen

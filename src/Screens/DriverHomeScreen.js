@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import { StyleSheet, Text, View, Dimensions, ScrollView, FlatList, TouchableOpacity, Platform } from "react-native";
-import { colors, parameters } from "../global/style";
+import { StyleSheet, Text, View, Dimensions, TouchableOpacity, SafeAreaView, ScrollView } from "react-native";
 import MapView, { PROVIDER_GOOGLE } from "react-native-maps";
 import { updateDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { StatusBar } from "expo-status-bar";
@@ -11,316 +10,398 @@ import * as Notifications from 'expo-notifications';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
+const DailyEarningsCard = ({ totalEarnings, completedRides }) => (
+  <View style={styles.earningsCard}>
+    <View style={styles.earningsHeader}>
+      <Text style={styles.earningsTitle}>Gains du jour</Text>
+      <Text style={styles.earningsAmount}>{totalEarnings?.toLocaleString() || '0'} FCFA</Text>
+    </View>
+    <View style={styles.divider} />
+    <View style={styles.statsContainer}>
+      <View style={styles.statItem}>
+        <Text style={styles.statValue}>{completedRides || 0}</Text>
+        <Text style={styles.statLabel}>Courses</Text>
+      </View>
+      <View style={styles.statItem}>
+        <Text style={styles.statValue}>
+          {completedRides ? (totalEarnings / completedRides).toLocaleString() : '0'}
+        </Text>
+        <Text style={styles.statLabel}>Moy/Course</Text>
+      </View>
+    </View>
+  </View>
+);
+
+const AcceptedRidesSection = ({ acceptedRides, onRidePress }) => (
+  <View style={styles.acceptedRidesContainer}>
+    <Text style={styles.sectionTitle}>Mes courses du jour</Text>
+    <View style={styles.ridesGrid}>
+      {acceptedRides.map((ride) => (
+        <TouchableOpacity
+          key={ride.id}
+          style={styles.rideCard}
+          onPress={() => onRidePress(ride)}
+        >
+          <Text style={styles.rideDestination}>{ride.pickupLocation.address} - {ride.dropoffLocation.address}</Text>
+          <View style={styles.rideDetails}>
+            <Text style={styles.rideTime}>{ride.estimatedTime} min</Text>
+            <Text style={styles.ridePrice}>{ride.price?.toLocaleString()} FCFA</Text>
+          </View>
+          <View style={[styles.rideStatus, { backgroundColor: ride.status === 'enCours' ? '#ffd700' : '#4CAF50' }]}>
+            <Text style={styles.rideStatusText}>
+              {ride.status === 'enCours' ? 'En cours' : 'Terminé'}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      ))}
+    </View>
+  </View>
+);
+
 const DriverHomeScreen = ({ navigation }) => {
-    const [latlng, setLatLng] = useState({});
-    const [orders, setOrders] = useState([]);
-    const [driverName, setDriverName] = useState('');
-    const _map = useRef(null);
+  const [latlng, setLatLng] = useState({});
+  const [orders, setOrders] = useState([]);
+  const [driverName, setDriverName] = useState('');
+  const [dailyStats, setDailyStats] = useState({ totalEarnings: 0, completedRides: 0 });
+  const [acceptedRides, setAcceptedRides] = useState([]);
+  const _map = useRef(null);
 
-    const getLocation = async () => {
-        const { granted } = await Location.requestForegroundPermissionsAsync();
-        if (!granted) return;
-        const { coords: { latitude, longitude } } = await Location.getCurrentPositionAsync();
-        setLatLng({ latitude, longitude });
+  useEffect(() => {
+    const initializeApp = async () => {
+      await Promise.all([
+        getLocation(),
+        registerForPushNotificationsAsync(),
+        fetchDriverName(),
+        fetchDriverOrders()
+      ]);
     };
 
-    const fetchDriverName = async () => {
-        const userId = auth.currentUser.uid;
-        const driverDocRef = doc(db, 'drivers', userId);
-        const driverDoc = await getDoc(driverDocRef);
-        if (driverDoc.exists()) {
-            const driverData = driverDoc.data();
-            setDriverName(driverData.name);
-        }
-    };
+    initializeApp();
+  }, []);
 
-    useEffect(() => {
-        getLocation();
-        registerForPushNotificationsAsync();
-        fetchDriverName();
-        fetchDriverOrders();
-    }, []);
+  const getLocation = async () => {
+    try {
+      const { granted } = await Location.requestForegroundPermissionsAsync();
+      if (!granted) return;
 
-    const registerForPushNotificationsAsync = async () => {
-        const { status } = await Notifications.requestPermissionsAsync();
-        if (status !== 'granted') {
-            console.log('Permission not granted for notifications');
-            return;
-        }
+      const { coords: { latitude, longitude } } = await Location.getCurrentPositionAsync();
+      setLatLng({ latitude, longitude });
+    } catch (error) {
+      console.error('Error getting location:', error);
+    }
+  };
 
-        const token = (await Notifications.getExpoPushTokenAsync({ projectId: '57e70b0c-f485-44cc-bfb9-b6868dcbde3f' })).data;
-        console.log('Push Notification Token:', token);
-        const userId = auth.currentUser.uid;
-        const driverRef = doc(db, 'drivers', userId);
-        await updateDoc(driverRef, { token: token });
-    };
+  const fetchDriverName = async () => {
+    try {
+      const userId = auth.currentUser.uid;
+      const driverDocRef = doc(db, 'drivers', userId);
+      const driverDoc = await getDoc(driverDocRef);
 
-    const fetchDriverOrders = async () => {
-        const userId = auth.currentUser.uid;
-        const ordersCollection = collection(db, 'orders');
-        const q = query(ordersCollection, where('driverId', '==', userId));
-        const querySnapshot = await getDocs(q);
-        const ordersData = querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
-        setOrders(ordersData);
-    };
+      if (driverDoc.exists()) {
+        setDriverName(driverDoc.data().name);
+      }
+    } catch (error) {
+      console.error('Error fetching driver name:', error);
+    }
+  };
 
-    useEffect(() => {
-        const subscription = Notifications.addNotificationReceivedListener(notification => {
-            console.log('Notification reçue:', notification);
-            navigation.navigate('AcceptOrderScreen', {
-                orderDetails: notification.request.content.data.orderDetails,
-            });
-        });
+  const registerForPushNotificationsAsync = async () => {
+    try {
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status !== 'granted') return;
 
-        return () => subscription.remove();
-    }, []);
+      const token = (await Notifications.getExpoPushTokenAsync({
+        projectId: '57e70b0c-f485-44cc-bfb9-b6868dcbde3f'
+      })).data;
 
-    return (
-        <View style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>Bienvenue, {driverName}</Text>
-            </View>
-            <ScrollView bounces={false} contentContainerStyle={styles.scrollViewContent}>
-                <View style={styles.home}>
-                    <Text style={styles.text1}>Vos courses en attente</Text>
-                    <FlatList
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        data={[{ id: '1', destination: 'Aéroport', time: '5 min' }, { id: '2', destination: 'Centre-ville', time: '10 min' }]}
-                        keyExtractor={item => item.id}
-                        renderItem={({ item }) => (
-                            <TouchableOpacity style={styles.card}>
-                                <Text style={styles.cardTitle}>{item.destination}</Text>
-                                <Text style={styles.cardTime}>{item.time}</Text>
-                            </TouchableOpacity>
-                        )}
-                    />
-                </View>
+      const userId = auth.currentUser.uid;
+      const driverRef = doc(db, 'drivers', userId);
+      await updateDoc(driverRef, { token });
+    } catch (error) {
+      console.error('Error registering for notifications:', error);
+    }
+  };
 
-                <View style={styles.mapContainer}>
-                    <MapView
-                        ref={_map}
-                        provider={PROVIDER_GOOGLE}
-                        style={styles.map}
-                        showsUserLocation
-                        followsUserLocation
-                        initialRegion={{
-                            latitude: latlng.latitude || 37.78825,
-                            longitude: latlng.longitude || -122.4324,
-                            latitudeDelta: 0.008,
-                            longitudeDelta: 0.008,
-                        }}
-                    >
-                        {/* Ajoute des marqueurs ici si besoin */}
-                    </MapView>
-                </View>
+  const fetchDriverOrders = async () => {
+    try {
+      const userId = auth.currentUser.uid;
+      const ordersCollection = collection(db, 'orders');
+      const q = query(ordersCollection, where('driverId', '==', userId));
+      const querySnapshot = await getDocs(q);
 
-                <View style={styles.footer}>
-                    <TouchableOpacity style={styles.footerButton} onPress={() => navigation.navigate("DriverOrdersScreen", { orders })}>
-                        <Text style={styles.footerButtonText}>Voir mes courses</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.footerButton} onPress={() => navigation.navigate("ProfileScreen")}>
-                        <Text style={styles.footerButtonText}>Mon Profil</Text>
-                    </TouchableOpacity>
-                </View>
+      const ordersData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
 
-                {/* Afficher les courses effectuées par le chauffeur */}
-                <View style={styles.ordersContainer}>
-                    <Text style={styles.ordersTitle}>Courses effectuées</Text>
-                    <FlatList
-                        data={orders}
-                        keyExtractor={item => item.id}
-                        renderItem={({ item }) => (
-                            <View style={styles.orderItem}>
-                                <Text style={styles.orderDistance}>Distance: {item.distance.toFixed(2)} km</Text>
-                                <Text style={styles.orderPrice}>Prix: {item.price.toFixed(2)} FCFA</Text>
-                            </View>
-                        )}
-                    />
-                </View>
-            </ScrollView>
-            <StatusBar style="light" backgroundColor={colors.blue} translucent={true} />
+      // Filtrer et organiser les courses
+      const today = new Date().setHours(0, 0, 0, 0);
+
+      const todayOrders = ordersData.filter(order => {
+        const orderDate = new Date(order.acceptedAt?.toDate()).setHours(0, 0, 0, 0);
+        return orderDate === today;
+      });
+
+      const accepted = todayOrders.filter(order =>
+        ['accepted', 'inProgress'].includes(order.status)
+      ).map(order => ({
+        ...order,
+        estimatedTime: 15, 
+        status: order.status === 'inProgress' ? 'enCours' : 'attente'
+      }));
+
+      const completed = todayOrders.filter(order =>
+        order.status === 'accepted'
+      ).map(order => ({
+        ...order,
+        completedAt: new Date(order.completedAt?.toDate()).toLocaleTimeString('fr-FR', {
+          hour: '2-digit',
+          minute: '2-digit'
+        }),
+        duration: Math.round((order.completedAt?.toDate() - order.startTime?.toDate()) / 60000) || 0
+      }));
+
+      // Calculer les statistiques
+      const totalEarnings = completed.reduce((sum, order) => sum + (order.price || 0), 0);
+
+      setAcceptedRides(accepted);
+      setDailyStats({
+        totalEarnings,
+        completedRides: completed.length
+      });
+      setOrders(ordersData);
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+    }
+  };
+
+  useEffect(() => {
+    const subscription = Notifications.addNotificationReceivedListener(notification => {
+      navigation.navigate('AcceptOrderScreen', {
+        orderDetails: notification.request.content.data.orderDetails,
+      });
+    });
+
+    return () => subscription.remove();
+  }, []);
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar style="light" backgroundColor="#1a73e8" translucent={true} />
+
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Bienvenue, {driverName}</Text>
+      </View>
+
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollViewContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <DailyEarningsCard
+          totalEarnings={dailyStats.totalEarnings}
+          completedRides={dailyStats.completedRides}
+        />
+
+        <View style={styles.mapContainer}>
+          <MapView
+            ref={_map}
+            provider={PROVIDER_GOOGLE}
+            style={styles.map}
+            showsUserLocation
+            followsUserLocation
+            initialRegion={{
+              latitude: latlng.latitude || 37.78825,
+              longitude: latlng.longitude || -122.4324,
+              latitudeDelta: 0.008,
+              longitudeDelta: 0.008,
+            }}
+          />
         </View>
-    );
+
+        <View style={styles.actionButtons}>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.primaryButton]}
+            onPress={() => navigation.navigate("DriverOrdersScreen", { orders })}
+          >
+            <Text style={styles.buttonText}>Voir mes courses</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionButton, styles.secondaryButton]}
+            onPress={() => navigation.navigate("ProfileScreen")}
+          >
+            <Text style={styles.buttonText}>Mon Profil</Text>
+          </TouchableOpacity>
+        </View>
+
+        <AcceptedRidesSection acceptedRides={acceptedRides} />
+      </ScrollView>
+    </SafeAreaView>
+  );
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: colors.white,
-        paddingBottom: 30,
-        paddingTop: parameters.statusBarHeight,
-    },
-    header: {
-        backgroundColor: colors.blue,
-        height: parameters.headerHeight,
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.2,
-                shadowRadius: 4,
-            },
-            android: {
-                elevation: 4,
-            },
-        }),
-    },
-    headerTitle: {
-        color: colors.white,
-        fontSize: 24,
-        fontWeight: 'bold',
-    },
-    scrollViewContent: {
-        paddingHorizontal: 20,
-    },
-    home: {
-        backgroundColor: colors.blue,
-        padding: 20,
-        borderRadius: 10,
-        marginVertical: 20,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.2,
-                shadowRadius: 4,
-            },
-            android: {
-                elevation: 4,
-            },
-        }),
-    },
-    text1: {
-        color: colors.white,
-        fontSize: 22,
-        marginBottom: 10,
-    },
-    card: {
-        backgroundColor: colors.white,
-        borderRadius: 10,
-        padding: 15,
-        marginRight: 10,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.2,
-                shadowRadius: 4,
-            },
-            android: {
-                elevation: 4,
-            },
-        }),
-    },
-    cardTitle: {
-        fontSize: 18,
-        color: colors.black,
-    },
-    cardTime: {
-        color: colors.grey,
-    },
-    mapContainer: {
-        marginVertical: 20,
-        alignItems: 'center',
-    },
-    map: {
-        width: SCREEN_WIDTH * 0.9,
-        height: 200,
-        borderRadius: 10,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.2,
-                shadowRadius: 4,
-            },
-            android: {
-                elevation: 4,
-            },
-        }),
-    },
-    footer: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        marginVertical: 20,
-    },
-    footerButton: {
-        backgroundColor: colors.black,
-        padding: 15,
-        borderRadius: 20,
-        flex: 1,
-        marginHorizontal: 5,
-        alignItems: 'center',
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.2,
-                shadowRadius: 4,
-            },
-            android: {
-                elevation: 4,
-            },
-        }),
-    },
-    footerButtonText: {
-        color: colors.white,
-        fontSize: 16,
-    },
-    ordersContainer: {
-        marginTop: 20,
-        padding: 20,
-        backgroundColor: colors.white,
-        borderRadius: 10,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.2,
-                shadowRadius: 4,
-            },
-            android: {
-                elevation: 4,
-            },
-        }),
-    },
-    ordersTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        marginBottom: 10,
-    },
-    orderItem: {
-        backgroundColor: colors.lightGray,
-        padding: 15,
-        borderRadius: 10,
-        marginBottom: 10,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.2,
-                shadowRadius: 4,
-            },
-            android: {
-                elevation: 4,
-            },
-        }),
-    },
-    orderDistance: {
-        fontSize: 16,
-        color: colors.black,
-    },
-    orderPrice: {
-        fontSize: 16,
-        color: colors.black,
-    },
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  header: {
+    backgroundColor: '#1a73e8',
+    padding: 20,
+    paddingTop: 40,
+  },
+  headerTitle: {
+    color: '#ffffff',
+    fontSize: 24,
+    fontWeight: '600',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollViewContent: {
+    padding: 16,
+    paddingBottom: 30,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    marginBottom: 12,
+    color: '#2c3e50',
+  },
+  earningsCard: {
+    backgroundColor: '#1a73e8',
+    borderRadius: 16,
+    padding: 20,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    marginBottom: 20,
+  },
+  earningsHeader: {
+    marginBottom: 15,
+  },
+  earningsTitle: {
+    fontSize: 16,
+    color: '#ffffff',
+    opacity: 0.9,
+  },
+  earningsAmount: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#ffffff',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#ffffff',
+    opacity: 0.2,
+    marginVertical: 15,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#ffffff',
+  },
+  statLabel: {
+    fontSize: 14,
+    color: '#ffffff',
+    opacity: 0.9,
+  },
+  mapContainer: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    height: 200,
+    marginBottom: 20,
+  },
+  map: {
+    flex: 1,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  actionButton: {
+    flex: 1,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  primaryButton: {
+    backgroundColor: '#1a73e8',
+  },
+  secondaryButton: {
+    backgroundColor: '#34495e',
+  },
+  buttonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  acceptedRidesContainer: {
+    marginBottom: 20,
+  },
+  ridesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  rideCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    width: SCREEN_WIDTH -44 ,
+  },
+  rideDestination: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#2c3e50',
+    marginBottom: 8,
+  },
+  rideDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  rideTime: {
+    fontSize: 14,
+    color: '#7f8c8d',
+  },
+  ridePrice: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#2c3e50',
+  },
+  rideStatus: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  rideStatusText: {
+    fontSize: 12,
+    color: '#000000',
+    fontWeight: '500',
+  },
 });
 
 export default DriverHomeScreen;
