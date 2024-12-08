@@ -1,17 +1,16 @@
 import React, { useState, useContext, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Image, TextInput, FlatList, ActivityIndicator } from "react-native";
-import { Avatar, Icon } from 'react-native-elements';
+import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Image, TextInput, FlatList, ActivityIndicator, StatusBar } from "react-native";
+import { Icon } from 'react-native-elements';
 import { colors, parameters } from '../global/style';
-import MapView, { PROVIDER_GOOGLE, Marker } from 'react-native-maps';
 import MapComponent from "../Compnents/MapComponent";
-import MapViewDirections from 'react-native-maps-directions';
-import axios from 'axios';
 import * as Notifications from 'expo-notifications';
 import { db, auth } from '../../firebaseConfig';
 import { doc, updateDoc } from 'firebase/firestore';
 import * as Device from 'expo-device';
 import { OriginContext, DestinationContext } from '../Contexts/contexts';
-
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import axios from 'axios';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -251,62 +250,79 @@ export default function RequestScreen({ navigation }) {
 
     return (
         <View style={styles.container}>
-           
+            <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+            
+            <LinearGradient
+                colors={['rgba(255,255,255,0.95)', 'rgba(255,255,255,0.85)']}
+                style={styles.headerContainer}
+            >
+                <Text style={styles.headerTitle}>Réservation de course</Text>
 
-            <View style={styles.view2}>
-                <TouchableOpacity>
-                    <View style={styles.view3}>
-                        
-                        <Text style={{ marginLeft: "21%",fontSize:25,fontWeight: 'bold',marginBottom: 20,top:20 }}>Reservation de course</Text>
-                      
-                    </View>
-                </TouchableOpacity>
-
-                <View style={styles.view4}>
-                    <View>
-                        <Image
-                            style={styles.image1}
-                            source={require("../../assets/transit.png")}
-                        />
-                    </View>
-                    <View>
-                        <TouchableOpacity
-                            onPress={() => setActiveInput('origin')}
-                            style={styles.view6}
-                        >
-                            <TextInput
-                                ref={originInputRef}
-                                style={styles.text1}
-                                placeholder="D'où?"
-                                value={userOrigin.address}
-                                onChangeText={(text) => handleSearch(text, 'origin')}
-                                onFocus={() => setActiveInput('origin')}
+                <BlurView intensity={80} tint="light" style={styles.searchContainer}>
+                    <View style={styles.inputWrapper}>
+                        <View style={styles.inputIconContainer}>
+                            <Image
+                                style={styles.transitIcon}
+                                source={require("../../assets/transit.png")}
                             />
-                        </TouchableOpacity>
+                            <View style={styles.verticalLine} />
+                        </View>
 
-                        <TouchableOpacity
-                            onPress={() => setActiveInput('destination')}
-                            style={styles.view5}
-                        >
-                            <TextInput
-                                ref={destinationInputRef}
-                                style={styles.text10}
-                                placeholder="Où allez-vous?"
-                                value={userDestination.address}
-                                onChangeText={(text) => handleSearch(text, 'destination')}
-                                onFocus={() => setActiveInput('destination')}
-                            />
-                        </TouchableOpacity>
+                        <View style={styles.inputsContainer}>
+                            <TouchableOpacity
+                                onPress={() => setActiveInput('origin')}
+                                style={styles.inputContainer}
+                            >
+                                <Icon
+                                    name="circle"
+                                    type="material-community"
+                                    size={12}
+                                    color={colors.blue}
+                                />
+                                <TextInput
+                                    ref={originInputRef}
+                                    style={styles.input}
+                                    placeholder="Point de départ"
+                                    placeholderTextColor="#666"
+                                    value={userOrigin.address}
+                                    onChangeText={(text) => handleSearch(text, 'origin')}
+                                    onFocus={() => setActiveInput('origin')}
+                                />
+                            </TouchableOpacity>
+
+                            <View style={styles.inputDivider} />
+
+                            <TouchableOpacity
+                                onPress={() => setActiveInput('destination')}
+                                style={styles.inputContainer}
+                            >
+                                <Icon
+                                    name="map-marker"
+                                    type="material-community"
+                                    size={12}
+                                    color="#FF385C"
+                                />
+                                <TextInput
+                                    ref={destinationInputRef}
+                                    style={styles.input}
+                                    placeholder="Destination"
+                                    placeholderTextColor="#666"
+                                    value={userDestination.address}
+                                    onChangeText={(text) => handleSearch(text, 'destination')}
+                                    onFocus={() => setActiveInput('destination')}
+                                />
+                            </TouchableOpacity>
+                        </View>
                     </View>
-                </View>
-            </View>
+                </BlurView>
+            </LinearGradient>
 
             {activeInput && (
-                <View style={styles.suggestionsContainer}>
+                <BlurView intensity={95} tint="light" style={styles.suggestionsContainer}>
                     {loading ? (
                         <View style={styles.loadingContainer}>
                             <ActivityIndicator size="large" color={colors.blue} />
-                            <Text style={styles.loadingText}>Chargement des lieux...</Text>
+                            <Text style={styles.loadingText}>Recherche des lieux...</Text>
                         </View>
                     ) : (
                         <FlatList
@@ -317,22 +333,26 @@ export default function RequestScreen({ navigation }) {
                                     style={styles.suggestionItem}
                                     onPress={() => handleSelectLocation(item, activeInput)}
                                 >
-                                    <Icon
-                                        name="map-marker"
-                                        type="material-community"
-                                        color={colors.blue}
-                                        size={24}
-                                        style={{ marginRight: 10 }}
-                                    />
-                                    <Text style={styles.suggestionText}>
-                                        {item.name} - {item.type}
-                                    </Text>
+                                    <View style={styles.suggestionIconContainer}>
+                                        <Icon
+                                            name="map-marker"
+                                            type="material-community"
+                                            color={colors.blue}
+                                            size={24}
+                                        />
+                                    </View>
+                                    <View style={styles.suggestionTextContainer}>
+                                        <Text style={styles.suggestionMainText}>{item.name}</Text>
+                                        <Text style={styles.suggestionSubText}>{item.type}</Text>
+                                    </View>
                                 </TouchableOpacity>
                             )}
+                            showsVerticalScrollIndicator={false}
                         />
                     )}
-                </View>
+                </BlurView>
             )}
+
             <MapComponent
                 userOrigin={userOrigin}
                 userDestination={userDestination}
@@ -345,8 +365,20 @@ export default function RequestScreen({ navigation }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        paddingTop: parameters.statusBarHeight,
-        
+        backgroundColor: '#fff',
+    },
+    headerContainer: {
+        paddingTop: parameters.statusBarHeight + 20,
+        paddingBottom: 20,
+        paddingHorizontal: 20,
+        borderBottomLeftRadius: 30,
+        borderBottomRightRadius: 30,
+        elevation: 5,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        zIndex: 100,
     },
     mapContainer: {
         flex: 1,
@@ -374,17 +406,112 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: colors.grey2
     },
+   
+    suggestionText: {
+        fontSize: 16,
+        color: colors.grey1
+    },
+    headerTitle: {
+        fontSize: 28,
+        fontWeight: '700',
+        color: '#333',
+        marginBottom: 20,
+        textAlign: 'center',
+    },
+    searchContainer: {
+        borderRadius: 16,
+        overflow: 'hidden',
+        marginTop: 10,
+    },
+    inputWrapper: {
+        flexDirection: 'row',
+        padding: 15,
+        backgroundColor: 'rgba(255,255,255,0.8)',
+    },
+    inputIconContainer: {
+        alignItems: 'center',
+        marginRight: 15,
+    },
+    transitIcon: {
+        height: 50,
+        width: 20,
+        marginBottom: 5,
+    },
+    verticalLine: {
+        flex: 1,
+        width: 1,
+        backgroundColor: colors.grey4,
+    },
+    inputsContainer: {
+        flex: 1,
+    },
+    inputContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.9)',
+        borderRadius: 12,
+        padding: 12,
+    },
+    input: {
+        flex: 1,
+        fontSize: 16,
+        color: '#333',
+        marginLeft: 10,
+    },
+    inputDivider: {
+        height: 1,
+        backgroundColor: colors.grey5,
+        marginVertical: 8,
+    },
+    suggestionsContainer: {
+        position: 'absolute',
+        top: parameters.statusBarHeight + 180,
+        left: 20,
+        right: 20,
+        maxHeight: SCREEN_HEIGHT * 0.4,
+        borderRadius: 16,
+        zIndex: 99,
+        overflow: 'hidden',
+    },
+    loadingContainer: {
+        padding: 20,
+        alignItems: 'center',
+    },
+    loadingText: {
+        marginTop: 10,
+        fontSize: 14,
+        color: '#666',
+    },
     suggestionItem: {
         flexDirection: 'row',
         alignItems: 'center',
         padding: 15,
         borderBottomWidth: 1,
-        borderBottomColor: colors.grey5
+        borderBottomColor: 'rgba(200,200,200,0.3)',
     },
-    suggestionText: {
+    suggestionIconContainer: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(100,150,255,0.1)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    suggestionTextContainer: {
+        flex: 1,
+        marginLeft: 12,
+    },
+    suggestionMainText: {
         fontSize: 16,
-        color: colors.grey1
+        color: '#333',
+        fontWeight: '500',
     },
+    suggestionSubText: {
+        fontSize: 13,
+        color: '#666',
+        marginTop: 2,
+    },
+    
     view1: {
         position: "absolute",
         top: 30,

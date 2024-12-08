@@ -10,7 +10,23 @@ import AcceptOrder from '../Screens/AcceptOrderScreen';
 import { auth, db } from '../../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import * as Notifications from 'expo-notifications';
+
+
+const fetchLocationName = async (latitude, longitude) => {
+  const overpassUrl = `https://overpass-api.de/api/interpreter?data=[out:json];node(around:10,${latitude},${longitude});out;`;
+  
+  try {
+      const response = await fetch(overpassUrl);
+      const data = await response.json();
+      const name = data.elements[0]?.tags?.name || 'Inconnu';
+      return name;
+  } catch (error) {
+      console.error("Erreur lors de la récupération du nom de lieu:", error);
+      return 'Inconnu';
+  }
+};
 import { getFirestore, collection, addDoc, getDocs } from 'firebase/firestore';
+
 
 
 export default class MapComponent extends Component {
@@ -25,10 +41,9 @@ export default class MapComponent extends Component {
             returnDate: null,
             showDepartureDatePicker: false,
             showReturnDatePicker: false,
-           
+            
         };
     }
-
     calculateDistance = (origin, destination) => {
         const toRadians = (value) => (value * Math.PI) / 180;
 
@@ -51,7 +66,7 @@ export default class MapComponent extends Component {
 
         return distance;
     }
-
+    
     calculatePrice = (distance) => {
         const pricePerKm = 2000;
         return distance * pricePerKm * (this.state.isRoundTrip ? 2 : 1); // Multiplie par 2 si aller-retour
@@ -102,7 +117,7 @@ export default class MapComponent extends Component {
             alert("Vous devez être connecté pour passer une commande.");
             return;
         }
-        const clientToken = (await Notifications.getExpoPushTokenAsync()).data;
+        const clientToken = (await Notifications.getDevicePushTokenAsync()).data;
         const orderData = {
             userId: userId,
             distance,
@@ -168,34 +183,42 @@ export default class MapComponent extends Component {
             return;
         }
 
-        const message = {
-            to: token,
-            notification: {
-                title: 'Nouvelle course disponible!',
-                body: `Une nouvelle course vous attend à ${orderDetails.pickupLocation.latitude}, ${orderDetails.pickupLocation.longitude}.`,
-            },
-            data: {
-                orderDetails,
-            },
-        };
-
         try {
-            const response = await fetch('https://exp.host/--/api/v2/push/send', {
+            // Obtenir le nom de l'adresse de départ
+            const pickupLocationName = await fetchLocationName(
+                orderDetails.pickupLocation.latitude,
+                orderDetails.pickupLocation.longitude
+            );
+
+            const message = {
+                to: token,
+                notification: {
+                    title: 'Nouvelle course disponible!',
+                    body: `Une nouvelle course vous attend à ${pickupLocationName}.`
+                },
+                data: {
+                    orderDetails: JSON.stringify(orderDetails),
+                    type: 'NEW_ORDER'
+                }
+            };
+
+            console.log("Données de la notification:", message);
+
+            // Envoyer la notification via FCM
+            await fetch('https://fcm.googleapis.com/fcm/send', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Authorization': `key=${YOUR_FCM_SERVER_KEY}`
+                    
                 },
-                body: JSON.stringify(message),
+                body: JSON.stringify(message)
             });
 
-            const data = await response.json();
-            if (response.ok) {
-                console.log("Notification envoyée avec succès:", data);
-            } else {
-                console.error("Erreur lors de l'envoi de la notification:", data);
-            }
+            console.log("Notification envoyée avec succès");
         } catch (error) {
-            console.error("Erreur lors de l'envoi de la notification:", error.message);
+            console.error("Erreur lors de l'envoi de la notification:", error);
+            throw error;
         }
     };
 
@@ -232,7 +255,7 @@ export default class MapComponent extends Component {
             <View style={{ flex: 1 }}>
                 <MapView
                     provider={PROVIDER_GOOGLE}
-                    style={{ height: '100%', width: '100%' }}
+                    style={{ height: '98%', width: '95%',margin:10 }}
                     customMapStyle={mapStyle}
                     ref={this._map}
                 >
@@ -248,7 +271,7 @@ export default class MapComponent extends Component {
                     {userDestination && userDestination.latitude !== null && (
                         <Marker coordinate={userDestination} anchor={{ x: 0.5, y: 0.5 }}>
                             <Image
-                                source={require('../../assets/begining.png')}
+                                source={require('../../assets/checkered-flag.png')}
                                 style={{ height: 35, width: 35 }}
                                 resizeMode="cover"
                             />

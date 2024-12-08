@@ -167,7 +167,7 @@ const Login = () => {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: 'white', alignItems: 'center' }}>
       <View>
-        <Image style={{ width: 150, height: 100, top: 45 }} source={require('../../assets/Logo.png')} />
+        <Image style={{ width: 100, height: 100, top: 45, }} source={require('../../assets/Logo.png')} />
       </View>
       <KeyboardAvoidingView>
         <View style={{ alignItems: 'center' }}>
@@ -178,13 +178,15 @@ const Login = () => {
             onPress={() => setAuthMethod('email')}
             style={[styles.authMethodButton, authMethod === 'email' && styles.selected]}
           >
-            <Text style={styles.authMethodText}>Email</Text>
+            <Text style={ styles.authMethodText,
+        authMethod === 'email' && styles.authMethodSelectedText}>Email</Text>
           </Pressable>
           <Pressable
             onPress={() => setAuthMethod('phone')}
             style={[styles.authMethodButton, authMethod === 'phone' && styles.selected]}
           >
-            <Text style={styles.authMethodText}>Téléphone</Text>
+            <Text style={ styles.authMethodText,
+        authMethod === 'phone' && styles.authMethodSelectedText}>Téléphone</Text>
           </Pressable>
         </View>
         {authMethod === 'email' ? (
@@ -258,7 +260,7 @@ const Login = () => {
           </>
         )}
         <Pressable onPress={() => navigation.navigate('Register')} style={{ marginTop: 10 }}>
-          <Text style={{ textAlign: 'center', fontSize: 15, color: 'gray' }}>Je n'ai pas de compte? Inscrivez-vous</Text>
+          <Text style={{ textAlign: 'center', fontSize: 15, color: 'gray' }}>Vous n'avez  pas de compte? Inscrivez-vous</Text>
         </Pressable>
       </KeyboardAvoidingView>
       <Toast ref={(ref) => Toast.setRef(ref)} />
@@ -290,6 +292,9 @@ const styles = StyleSheet.create({
   },
   selected: {
     backgroundColor: '#1b5988',
+    color:'white'
+    
+    
   },
   selectedText: {
     color: 'white',
@@ -315,13 +320,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#1b5988',
     padding: 12,
     borderRadius: 8,
-    marginVertical: 10,
+    marginVertical: 2,
+    bottom:85,
     width: '90%',
     alignItems: 'center',
   },
+  authMethodSelectedText: {
+    color: 'white',
+  },
+  buttonText:{
+    color:'white'
+  },
   loginButton: {
     marginTop: 140,
-    backgroundColor: 'blue',
+    backgroundColor: '#1b5988',
     marginLeft: 'auto',
     marginRight: 'auto',
     borderRadius: 6,
