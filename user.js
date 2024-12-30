@@ -14,7 +14,7 @@ class User {
     return {
       uid: this.uid,
       email: this.email,
-      phone: this.phone,
+      phone: this.phone, 
       username: this.username,
       cars: this.cars.map(car => ({
         carType: car.carType || null, 

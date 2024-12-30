@@ -5,7 +5,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
 import Toast from 'react-native-toast-message';
 import { auth, db } from '../../firebaseConfig'; 
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword,getIdToken } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
@@ -43,6 +43,7 @@ const DriverRegister = () => {
       console.log('Image URI:', result.assets[0].uri);
     }
   };
+  
   const uploadImage = async (uri, name) => {
     try {
       const response = await fetch(uri);
@@ -62,6 +63,7 @@ const DriverRegister = () => {
       throw new Error('Error uploading image');
     }
   };
+   
   const handleRegister = async () => {
     if (!name || !email || !phoneNumber || !password || !licenseImage || !idCardImage) {
       showToast('error', 'Erreur', 'Veuillez remplir tous les champs');
@@ -72,9 +74,11 @@ const DriverRegister = () => {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const userId = userCredential.user.uid;
 
-      // Télécharger les images et obtenir leurs URL
+      
       const licenseImageUrl = await uploadImage(licenseImage, `license_${userId}.jpg`);
       const idCardImageUrl = await uploadImage(idCardImage, `idCard_${userId}.jpg`);
+      const token = await getIdToken(auth.currentUser);
+  
 
       const driverData = {
         uid: userId,
@@ -83,6 +87,7 @@ const DriverRegister = () => {
         phone: phoneNumber,
         licenseImage: licenseImageUrl,
         idCardImage: idCardImageUrl,
+        token:token
       };
 
       await setDoc(doc(db, 'drivers', userId), driverData);

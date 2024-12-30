@@ -25,7 +25,8 @@ import {
 import {
   PhoneAuthProvider,
   signInWithCredential,
-  createUserWithEmailAndPassword
+  createUserWithEmailAndPassword,
+  getIdToken
 } from 'firebase/auth';
 
 import { doc, setDoc } from 'firebase/firestore';
@@ -247,7 +248,7 @@ const Register = () => {
         userContact = email; // L'email sera stocké
       }
   
-      const token = (await Notifications.getExpoPushTokenAsync()).data;
+      const token = await getIdToken(auth.currentUser);
   
       const carData = await Promise.all(
         cars.map(async (car, index) => {
@@ -453,8 +454,10 @@ const Register = () => {
               <ActivityIndicator color="white" />
             ) : (
               <Text style={styles.registerButtonText}>S'inscrire</Text>
+               
             )}
           </Pressable>
+          <Text onPress={navigation.navigate("DriverRegister")} > Je suis chauffeur </Text>
         </ScrollView>
       </KeyboardAvoidingView>
       <Toast ref={(ref) => Toast.setRef(ref)} />

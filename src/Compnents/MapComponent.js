@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import { Marker } from 'react-native-maps';
+import { Marker,Callout } from 'react-native-maps';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { View, Image, Text, Switch, TouchableOpacity, StyleSheet, TextInput, Platform, ScrollView } from 'react-native';
 import MapView, { PROVIDER_GOOGLE } from 'react-native-maps';
@@ -10,8 +10,11 @@ import AcceptOrder from '../Screens/AcceptOrderScreen';
 import { auth, db } from '../../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import * as Notifications from 'expo-notifications';
+import axios from 'axios';
+import { socketService } from '../../clientSocket';
+import SearchingBottomSheet from '../../SearchingBottomSheet';
 
-
+const GOOGLE_MAPS_APIKEY = 'AIzaSyBFu_n9UIVYrbGWhl88xzQM5gtPTUk1bm8';
 const fetchLocationName = async (latitude, longitude) => {
   const overpassUrl = `https://overpass-api.de/api/interpreter?data=[out:json];node(around:10,${latitude},${longitude});out;`;
   
@@ -25,6 +28,26 @@ const fetchLocationName = async (latitude, longitude) => {
       return 'Inconnu';
   }
 };
+const getTravelTime = async (origin, destination) => {
+    const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origin}&destinations=${destination}&key=${GOOGLE_MAPS_APIKEY}`;
+
+    try {
+        const response = await axios.get(url);
+        const data = response.data;
+
+        if (data.status === 'OK') {
+            const duration = data.rows[0].elements[0].duration.text;
+            const distance = data.rows[0].elements[0].distance.text;
+            console.log(duration)
+            return { duration, distance };
+        } else {
+            throw new Error('Erreur lors de la récupération des informations de distance');
+        }
+    } catch (error) {
+        console.error("Erreur lors de la requête à l'API Google Maps Distance Matrix:", error);
+        return null;
+    }
+};
 import { getFirestore, collection, addDoc, getDocs } from 'firebase/firestore';
 
 
@@ -35,12 +58,14 @@ export default class MapComponent extends Component {
         this._map = React.createRef();
         this.state = {
             distance: 0,
+            travelTime: '',
             isRoundTrip: false, // État pour le type de trajet
             isReserveLater: false,
             departureDate: null,
             returnDate: null,
             showDepartureDatePicker: false,
             showReturnDatePicker: false,
+            isSearchingDrivers: false
             
         };
     }
@@ -66,6 +91,7 @@ export default class MapComponent extends Component {
 
         return distance;
     }
+   
     
     calculatePrice = (distance) => {
         const pricePerKm = 2000;
@@ -89,6 +115,13 @@ export default class MapComponent extends Component {
             this.setState({ distance });
             const price = this.calculatePrice(distance);
             console.log("Distance:", distance.toFixed(2), "km", "Price:", price.toFixed(2), "CFA");
+
+            getTravelTime(`${userOrigin.latitude},${userOrigin.longitude}`, `${userDestination.latitude},${userDestination.longitude}`)
+            .then(result => {
+                if (result) {
+                    this.setState({ travelTime: result.duration });
+                }
+            });
         }
 
         if (userOrigin && userDestination && userDestination.latitude !== null) {
@@ -107,17 +140,17 @@ export default class MapComponent extends Component {
     toggleSwitch = () => {
         this.setState({ isRoundTrip: !this.state.isRoundTrip });
     }
-
     handleContinue = async () => {
-        const { userOrigin, userDestination, navigation } = this.props;
+        const { userOrigin, userDestination } = this.props;
         const { distance, isRoundTrip } = this.state;
         const userId = auth.currentUser ? auth.currentUser.uid : null;
-
+    
         if (!userId) {
             alert("Vous devez être connecté pour passer une commande.");
             return;
         }
-        const clientToken = (await Notifications.getDevicePushTokenAsync()).data;
+        this.setState({ isSearchingDrivers: true });
+    
         const orderData = {
             userId: userId,
             distance,
@@ -125,36 +158,30 @@ export default class MapComponent extends Component {
             pickupLocation: userOrigin,
             dropoffLocation: userDestination,
             price: this.calculatePrice(distance),
-            clientToken: clientToken,
             status: 'pending',
         };
-
+    
         try {
-            // Enregistrer la commande dans Firestore
+            // Enregistrer dans Firestore
             const orderRef = await addDoc(collection(db, 'orders'), orderData);
-
-            console.log('Commande enregistrée avec l\'ID:', orderRef.id);
-            const orderDataWithId = { ...orderData, id: orderRef.id }; // Ajoutez l'ID ici
-
-            // Récupérer les tokens de tous les chauffeurs depuis Firestore
-            const driverTokens = await this.getAllDriverTokens();
-
-            // Envoyer la notification si des tokens sont trouvés
-            if (driverTokens.length > 0) {
-                await Promise.all(driverTokens.map(token => this.sendPushNotification(token, orderDataWithId)));
-            } else {
-                console.warn("Aucun token de chauffeur trouvé.");
-            }
+            console.log(orderData)
+            const orderDataWithId = { ...orderData, id: orderRef.id };
+    
+            // Envoyer via WebSocket
+            socketService.connect();
+        
+        // Add a small delay to ensure connection is established
+        setTimeout(() => {
+            socketService.sendNewOrder(orderDataWithId);
+            console.log('Order sent via socket:', orderDataWithId);
+        }, 500);
             
-             alert(`Commande enregistrée. Prix: ${this.calculatePrice(distance).toFixed(2)} CFA`);
-
-            // navigation.navigate("Recherche");
+            // alert(`Commande enregistrée. Prix: ${this.calculatePrice(distance).toFixed(2)} CFA`);
         } catch (error) {
             console.error("Erreur lors de l'enregistrement de la commande:", error);
             alert("Une erreur s'est produite lors de l'enregistrement de la commande.");
         }
     };
-
     getAllDriverTokens = async () => {
         const tokens = [];
         try {
@@ -177,50 +204,49 @@ export default class MapComponent extends Component {
         return tokens;
     }
 
-    sendPushNotification = async (token, orderDetails) => {
-        if (!token || typeof token !== 'string') {
-            console.error("Aucun token valide disponible pour envoyer la notification.");
-            return;
-        }
+    
+ 
+    // sendPushNotification = async (token, orderDetails) => {
+    //     if (!token || typeof token !== 'string') {
+    //         console.error("Aucun token valide disponible pour envoyer la notification.");
+    //         return;
+    //     }
 
-        try {
-            // Obtenir le nom de l'adresse de départ
-            const pickupLocationName = await fetchLocationName(
-                orderDetails.pickupLocation.latitude,
-                orderDetails.pickupLocation.longitude
-            );
+    //     try {
+    //         // Obtenir le nom de l'adresse de départ
+           
 
-            const message = {
-                to: token,
-                notification: {
-                    title: 'Nouvelle course disponible!',
-                    body: `Une nouvelle course vous attend à ${pickupLocationName}.`
-                },
-                data: {
-                    orderDetails: JSON.stringify(orderDetails),
-                    type: 'NEW_ORDER'
-                }
-            };
+    //         const message = {
+    //             to: token,
+    //             notification: {
+    //                 title: 'Nouvelle course disponible!',
+    //                 body: `Une nouvelle course vous attend à ${orderDetails.pickupLocation.address}.`
+    //             },
+    //             data: {
+    //                 orderDetails: JSON.stringify(orderDetails),
+    //                 type: 'NEW_ORDER'
+    //             }
+    //         };
 
-            console.log("Données de la notification:", message);
+    //         console.log("Données de la notification:", message);
 
-            // Envoyer la notification via FCM
-            await fetch('https://fcm.googleapis.com/fcm/send', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `key=${YOUR_FCM_SERVER_KEY}`
+    //         // Envoyer la notification via FCM
+    //         await fetch('https://fcm.googleapis.com/fcm/send', {
+    //             method: 'POST',
+    //             headers: {
+    //                 'Content-Type': 'application/json',
+    //                 'Authorization': `key=${YOUR_FCM_SERVER_KEY}`
                     
-                },
-                body: JSON.stringify(message)
-            });
+    //             },
+    //             body: JSON.stringify(message)
+    //         });
 
-            console.log("Notification envoyée avec succès");
-        } catch (error) {
-            console.error("Erreur lors de l'envoi de la notification:", error);
-            throw error;
-        }
-    };
+    //         console.log("Notification envoyée avec succès");
+    //     } catch (error) {
+    //         console.error("Erreur lors de l'envoi de la notification:", error);
+    //         throw error;
+    //     }
+    // };
 
     toggleReserveLater = () => {
         this.setState((prevState) => ({
@@ -248,8 +274,8 @@ export default class MapComponent extends Component {
 
     render() {
         const { userOrigin, userDestination } = this.props;
-        const { distance, isRoundTrip, isReserveLater, departureDate, returnDate, showDepartureDatePicker, showReturnDatePicker,destinationSelected  } = this.state;
-        const price = this.calculatePrice(distance); // Calculer le prix à afficher
+        const { distance, isRoundTrip, isReserveLater, departureDate, returnDate, showDepartureDatePicker, showReturnDatePicker,destinationSelected, travelTime   } = this.state;
+        const price = this.calculatePrice(distance);
 
         return (
             <View style={{ flex: 1 }}>
@@ -275,16 +301,25 @@ export default class MapComponent extends Component {
                                 style={{ height: 35, width: 35 }}
                                 resizeMode="cover"
                             />
+                              
+                                <View style={styles.callout}>
+                                    <Text style={styles.calloutText}>Durée: {travelTime}</Text>
+                                </View>
+                            
                         </Marker>
-                    )}
+                    )} 
 
                     {userOrigin && userDestination && (
                         <MapViewDirections
                             origin={userOrigin}
                             destination={userDestination}
-                            apikey={'AIzaSyBQivdVNxU7quHhWARw2VuXKmHVwXhNMk'}
+                            apikey={'AIzaSyBFu_n9UIVYrbGWhl88xzQM5gtPTUk1bm8'}
+                           
+                                     
+                                    
+                                    
                             strokeWidth={4}
-                            strokeColor={colors.black}
+                            strokeColor={colors.now}
                         />
                     )}
                 </MapView>
@@ -384,6 +419,11 @@ export default class MapComponent extends Component {
                         onChange={this.setReturnDate}
                     />
                 )}
+                <SearchingBottomSheet
+    isVisible={this.state.isSearchingDrivers}
+    origin={userOrigin.address}
+    destination={userDestination.address}
+/>
             </View>
         );
     }
@@ -440,6 +480,17 @@ const styles = StyleSheet.create({
         padding: 10,
         marginVertical: 5,
         borderRadius: 5,
+    },
+    callout: {
+        backgroundColor: 'white',
+        borderRadius: 5,
+        padding: 2,
+        borderWidth: 1,
+        borderColor: '#ccc',
+    },
+    calloutText: {
+        fontSize: 10,
+        color: 'black',
     },
 
     markerOrigin2: {

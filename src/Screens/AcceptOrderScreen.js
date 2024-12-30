@@ -1,60 +1,59 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { colors } from '../global/style'; 
-import { auth } from '../../firebaseConfig';
-import { doc } from 'firebase/firestore';
-import { db } from '../../firebaseConfig';
-import { updateDoc } from 'firebase/firestore';
-import {  getDoc  } from 'firebase/firestore';
-
+import { colors } from '../global/style';
+import { auth, db } from '../../firebaseConfig';
+import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { socketService } from '../../clientSocket';
 
 const AcceptOrderScreen = ({ route, navigation }) => {
     const { orderDetails } = route.params;
     const [pickupLocationName, setPickupLocationName] = useState('');
     const [dropoffLocationName, setDropoffLocationName] = useState('');
+    const [driverName, setDriverName] = useState('');
+    const [driverPhone, setDriverPhone] = useState('');
+    const [clientName, setClientName] = useState('');
 
-    
-    const fetchLocationName = async (latitude, longitude) => {
-        const overpassUrl = `https://overpass-api.de/api/interpreter?data=[out:json];node(around:10,${latitude},${longitude});out;`;
-        
+    const fetchDriverName = async () => {
         try {
-            const response = await fetch(overpassUrl);
-            const data = await response.json();
-            const name = data.elements[0]?.tags?.name || 'Inconnu';
-            return name;
+            const userId = auth.currentUser.uid;
+            const driverDocRef = doc(db, 'drivers', userId);
+            const driverDoc = await getDoc(driverDocRef);
+
+            if (driverDoc.exists()) {
+                setDriverName(driverDoc.data().name);
+                setDriverPhone(driverDoc.data().phone);
+            }
         } catch (error) {
-            console.error("Erreur lors de la récupération du nom de lieu:", error);
-            return 'Inconnu';
+            console.error('Error fetching driver name and phone:', error);
         }
     };
-    const getUserPushToken = async (uid) => {
-        const userDocRef = doc(db, 'users', uid);  // Assurez-vous que 'users' est la bonne collection
-        const userDoc = await getDoc(userDocRef);
-      
-        if (userDoc.exists()) {
-            const userData = userDoc.data();
-            return userData.token;  // Assurez-vous que le token est bien stocké sous 'token'
-        } else {
-            console.warn("Utilisateur non trouvé !");
-            return null;
-        }
-    };
-    
 
-   
+    const fetchClientName = async () => {
+        try {
+            const clientDocRef = doc(db, 'users', orderDetails.userId);
+            const clientDoc = await getDoc(clientDocRef);
+
+            if (clientDoc.exists()) {
+                setClientName(clientDoc.data().username);
+            }
+        } catch (error) {
+            console.error('Error fetching client name:', error);
+        }
+    };
+
     useEffect(() => {
-        const getLocationNames = async () => {
-            const pickupName = await fetchLocationName(orderDetails.pickupLocation.latitude, orderDetails.pickupLocation.longitude);
-            const dropoffName = await fetchLocationName(orderDetails.dropoffLocation.latitude, orderDetails.dropoffLocation.longitude);
-            setPickupLocationName(pickupName);
-            setDropoffLocationName(dropoffName);
-        };
+        fetchDriverName();
+        fetchClientName();
+    }, []);
 
-        getLocationNames();
-    }, [orderDetails]);
+    useEffect(() => {
+        console.log('driverName:', driverName);
+        console.log('driverPhone:', driverPhone);
+    }, [driverName, driverPhone]);
+
     const handleAccept = async () => {
-        const { orderDetails } = route.params;
-        const driverId = auth.currentUser ? auth.currentUser.uid : null;
+        console.log('handleAccept called', orderDetails);
+        const driverId = auth.currentUser?.uid;
 
         if (!driverId) {
             alert("Vous devez être connecté pour accepter une course.");
@@ -67,16 +66,40 @@ const AcceptOrderScreen = ({ route, navigation }) => {
                 status: 'accepted',
                 driverId: driverId,
                 acceptedAt: new Date(),
+                driverName: driverName,
+                driverPhone: driverPhone,
             });
+            console.log('Order updated successfully');
 
-            console.log("Commande mise à jour avec succès");
+            if (!socketService.socket?.connected) {
+                await socketService.connect();
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
 
-            sendNotificationToClient(orderDetails.userId, driverId);
+            const acceptanceData = {
+                orderId: orderDetails.id,
+                driverId: driverId,
+                clientId: orderDetails.userId,
+                driverInfo: {
+                    driverName,
+                    driverPhone,
+                    driverId,
+                },
+                orderDetails: {
+                    pickupLocation: orderDetails.pickupLocation,
+                    dropoffLocation: orderDetails.dropoffLocation,
+                    price: orderDetails.price,
+                    distance: orderDetails.distance
+                }
+            };
 
-          
-     
+            socketService.socket.emit('order:accept', acceptanceData);
+            console.log('Order acceptance emitted via socket:', acceptanceData);
 
-            navigation.navigate("MapScreen", { orderDetails });
+            socketService.socket.once('order:accept:confirmed', (response) => {
+                console.log('Server confirmed order acceptance:', response);
+                navigation.navigate("MapScreen", { orderDetails: { ...orderDetails, driverInfo: acceptanceData.driverInfo } });
+            });
 
         } catch (error) {
             console.error("Erreur lors de la mise à jour de la commande:", error);
@@ -84,174 +107,261 @@ const AcceptOrderScreen = ({ route, navigation }) => {
         }
     };
 
-    const sendNotificationToClient = async (clientId, driverId) => {
-        try {
-            // Récupérer le token du client
-            const clientToken = await getUserPushToken(clientId);
-    
-            // Récupérer les données du chauffeur
-            const driverDoc = await getDoc(doc(db, 'drivers', driverId));
-    
-            if (!clientToken) {
-                console.warn("Token du client non trouvé");
-                return;
-            }
-    
-            if (!driverDoc.exists()) {
-                console.warn("Données du chauffeur non trouvées");
-                return;
-            }
-    
-            // Extraire les informations du chauffeur
-            const driverData = driverDoc.data();
-            const { name, phone } = driverData;
-    
-            // Créer le message de notification
-            const notificationMessage = `Votre course a été acceptée par ${name}. Numéro de téléphone: ${phone}`;
-    
-            // Log des données de la notification
-            console.log("Données de la notification:", {
-                token: clientToken,
-                title: 'Course acceptée !',
-                body: notificationMessage
-            });
-    
-            // Envoyer la notification
-            await sendNotification(
-                clientToken,
-                'Course acceptée !',
-                notificationMessage
-            );
-    
-        } catch (error) {
-            console.error("Erreur lors de l'envoi de la notification:", error);
-            throw error;
+    useEffect(() => {
+        if (auth.currentUser) {
+            const userId = auth.currentUser.uid;
+
+            const setupSocketConnection = async () => {
+                try {
+                    await socketService.connect();
+
+                    socketService.socket.off('order:accepted');
+
+                    socketService.socket.on('order:accepted', (data) => {
+                        console.log('Commande acceptée, données reçues:', data);
+                        if (data.clientId === userId) {
+                            setAcceptedOrderInfo({
+                                driverName: data.driverInfo.driverName,
+                                driverPhone: data.driverInfo.driverPhone,
+                                driverId: data.driverInfo.driverId,
+                                orderId: data.orderId,
+                                orderDetails: data.orderDetails
+                            });
+                            setShowAcceptanceNotification(true);
+                        }
+                    });
+                } catch (error) {
+                    console.error('Erreur lors de la configuration du socket:', error);
+                }
+            };
+
+            setupSocketConnection();
+
+            return () => {
+                if (socketService.socket) {
+                    socketService.socket.off('order:accepted');
+                    socketService.disconnect();
+                }
+            };
         }
-    };
-    
-    
-    const sendNotification = async (token, title, body) => {
-        const message = {
-            to: token,
-            sound: 'default',
-            title: title,
-            body: body,
-            data: {
-                type: 'ORDER_ACCEPTED'
-            },
-        };
-    
-        try {
-            const response = await fetch('https://exp.host/--/api/v2/push/send', {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(message),
-            });
-    
-            const data = await response.json();
-    
-            if (response.ok) {
-                console.log("Notification envoyée avec succès:", data);
-            } else {
-                throw new Error("Erreur serveur lors de l'envoi de la notification");
-            }
-        } catch (error) {
-            console.error("Erreur lors de l'envoi de la notification:", error);
-            throw error;
-        }
-    };
-    
+    }, []);
+
     const handleReject = () => {
         navigation.goBack();
     };
 
-    return(
+ 
+    return (
         <View style={styles.container}>
-            <Text style={styles.title}>Détails de la course</Text>
-           
-            <View style={styles.detailsContainer}>
-            <Text style={styles.detailText}> Départ : {pickupLocationName || 'Chargement...'} </Text>
-            <Text style={styles.detailText}> Destination :  {dropoffLocationName|| 'Chargement...'} </Text>
-            <Text style={styles.detailText}>Distance : {orderDetails.distance} km     </Text>
-            <Text style={styles.detailText}>Prix : {orderDetails.price} CFA      </Text>
+            {/* Client Circle */}
+            <View style={styles.circleContainer}>
+                <View style={styles.circle} />
+                <Text style={styles.usernameText}>{clientName || 'Client'}</Text>
             </View>
 
+            {/* Modern Card */}
+            <View style={styles.card}>
+                {/* Starting Point */}
+                <View style={styles.locationSection}>
+                    <View style={styles.dotContainer}>
+                        <View style={[styles.dot, styles.greenDot]} />
+                        <View style={styles.verticalLine} />
+                    </View>
+                    <View style={styles.locationInfo}>
+                        <Text style={styles.locationLabel}>DÉPART</Text>
+                        <Text style={styles.locationText} numberOfLines={2}>
+                            {orderDetails.pickupLocation.address || 'Chargement...'}
+                        </Text>
+                    </View>
+                </View>
+
+                {/* Destination */}
+                <View style={styles.locationSection}>
+                    <View style={styles.dotContainer}>
+                        <View style={[styles.dot, styles.redDot]} />
+                    </View>
+                    <View style={styles.locationInfo}>
+                        <Text style={styles.locationLabel}>ARRIVÉE</Text>
+                        <Text style={styles.locationText} numberOfLines={2}>
+                            {orderDetails.dropoffLocation.address || 'Chargement...'}
+                        </Text>
+                    </View>
+                </View>
+
+                {/* Divider */}
+                <View style={styles.divider} />
+
+                {/* Price Section */}
+                <View style={styles.priceSection}>
+                    <View style={styles.priceContainer}>
+                        <Text style={styles.priceLabel}>Prix de la course</Text>
+                        <Text style={styles.priceText}>{orderDetails.price.toFixed(0)} CFA</Text>
+                    </View>
+                </View>
+            </View>
+
+            {/* Buttons */}
             <View style={styles.buttonContainer}>
-                <TouchableOpacity style={styles.buttonAccept} onPress={handleAccept}>
-                    <Text style={styles.buttonText}>Accepter</Text>
+                <TouchableOpacity 
+                    style={styles.acceptButton} 
+                    onPress={handleAccept}
+                >
+                    <Text style={styles.buttonText}>ACCEPTER</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.buttonReject} onPress={handleReject}>
-                    <Text style={styles.buttonText}>Refuser</Text>
+                
+                <TouchableOpacity 
+                    style={styles.rejectButton} 
+                    onPress={handleReject}
+                >
+                    <Text style={styles.buttonText}>REFUSER</Text>
                 </TouchableOpacity>
             </View>
         </View>
-         
-        );   
-    
+    );
 };
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.white,
+        backgroundColor: '#F8F9FA',
         padding: 20,
-        justifyContent: 'center',
+    },
+    circleContainer: {
         alignItems: 'center',
+        marginTop: 40,
+        marginBottom: 40,
     },
-    title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        marginBottom: 20,
-        color: colors.primary, 
+    circle: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        backgroundColor: '#E0E0E0',
+        marginBottom: 10,
     },
-    detailsContainer: {
-        backgroundColor: colors.lightGray, 
+    usernameText: {
+        fontSize: 16,
+        color: '#333',
+        fontWeight: '600',
+    },
+    card: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 20,
         padding: 20,
-        borderRadius: 10,
+        marginVertical: 20,
         shadowColor: '#000',
         shadowOffset: {
             width: 0,
-            height: 2,
+            height: 4,
         },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
         elevation: 5,
-        marginBottom: 20,
-        width: '100%',
     },
-    detailText: {
-        fontSize: 18,
-        marginVertical: 5,
-        color: colors.darkGray, // Couleur pour le texte des détails
+    locationSection: {
+        flexDirection: 'row',
+        marginBottom: 20,
+    },
+    dotContainer: {
+        width: 20,
+        alignItems: 'center',
+    },
+    dot: {
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+    },
+    greenDot: {
+        backgroundColor: '#4CAF50',
+    },
+    redDot: {
+        backgroundColor: '#F44336',
+    },
+    verticalLine: {
+        width: 2,
+        height: '100%',
+        backgroundColor: '#E0E0E0',
+        position: 'absolute',
+        top: 15,
+        left: 5,
+    },
+    locationInfo: {
+        flex: 1,
+        marginLeft: 15,
+    },
+    locationLabel: {
+        fontSize: 12,
+        color: '#9E9E9E',
+        marginBottom: 4,
+        fontWeight: '600',
+        letterSpacing: 0.5,
+    },
+    locationText: {
+        fontSize: 16,
+        color: '#333333',
+        lineHeight: 22,
+    },
+    divider: {
+        height: 1,
+        backgroundColor: '#EEEEEE',
+        marginVertical: 15,
+    },
+    priceSection: {
+        marginTop: 10,
+    },
+    priceContainer: {
+        alignItems: 'center',
+    },
+    priceLabel: {
+        fontSize: 14,
+        color: '#9E9E9E',
+        marginBottom: 8,
+        fontWeight: '500',
+    },
+    priceText: {
+        fontSize: 24,
+        color: '#2196F3',
+        fontWeight: 'bold',
     },
     buttonContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        width: '100%',
+        marginTop: 40,
     },
-    buttonAccept: {
+    acceptButton: {
         flex: 1,
-        backgroundColor: colors.success, // Couleur pour le bouton Accepter
-        padding: 15,
-        borderRadius: 10,
-        backgroundColor:'blue',
-        alignItems: 'center',
+        backgroundColor: '#4CAF50',
+        padding: 18,
+        borderRadius: 12,
         marginRight: 10,
-    },
-    buttonReject: {
-        flex: 1,
-        backgroundColor: 'red',
-        padding: 15,
-        borderRadius: 10,
         alignItems: 'center',
+        shadowColor: '#4CAF50',
+        shadowOffset: {
+            width: 0,
+            height: 4,
+        },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 3,
+    },
+    rejectButton: {
+        flex: 1,
+        backgroundColor: '#F44336',
+        padding: 18,
+        borderRadius: 12,
         marginLeft: 10,
+        alignItems: 'center',
+        shadowColor: '#F44336',
+        shadowOffset: {
+            width: 0,
+            height: 4,
+        },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 3,
     },
     buttonText: {
-        color: colors.white,
-        fontSize: 18,
+        color: '#FFF',
+        fontSize: 16,
         fontWeight: 'bold',
     },
 });

@@ -1,38 +1,65 @@
 import React, { useState, useContext, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Image, TextInput, FlatList, ActivityIndicator, StatusBar } from "react-native";
+import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Image, TextInput, FlatList, ActivityIndicator, StatusBar, Animated, Modal } from "react-native";
 import { Icon } from 'react-native-elements';
 import { colors, parameters } from '../global/style';
 import MapComponent from "../Compnents/MapComponent";
-import * as Notifications from 'expo-notifications';
 import { db, auth } from '../../firebaseConfig';
 import { doc, updateDoc } from 'firebase/firestore';
-import * as Device from 'expo-device';
 import { OriginContext, DestinationContext } from '../Contexts/contexts';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import axios from 'axios';
+import { socketService } from '../../clientSocket';
+import SearchingBottomSheet from '../../SearchingBottomSheet';
+const OrderAcceptanceNotification = ({ isVisible, driverInfo, onClose, navigation }) => {
+    if (!isVisible) return null;
+    
+    return (
+        <Modal
+            animationType="slide"
+            transparent={true}
+            visible={isVisible}
+            onRequestClose={onClose}
+        >
+            <View style={styles.centeredView}>
+                <View style={styles.modalView}>
+                    <Text style={styles.modalTitle}>Course acceptée!</Text>
+                    <Text style={styles.modalText}>
+                        Votre chauffeur {driverInfo?.driverName} arrive bientôt.
+                        {'\n'}Téléphone: {driverInfo?.driverPhone}
+                    </Text>
+                    <TouchableOpacity
+                        style={styles.modalButton}
+                        onPress={() => {
+                            onClose();
+                            navigation.navigate('OrderTracking', { driverInfo });
+                        }}
+                    >
+                        <Text style={styles.modalButtonText}>Voir les détails</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </Modal>
+    );
+};
+
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const GOOGLE_MAPS_APIKEY = 'YOUR_API_KEY'; // Remplacez par votre clé API
+const GOOGLE_MAPS_APIKEY = 'AIzaSyBFu_n9UIVYrbGWhl88xzQM5gtPTUk1bm8';
 
-Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: false,
-      shouldSetBadge: true,
-    }),
-  });
-  
 export default function RequestScreen({ navigation }) {
     const { origin, dispatchOrigin } = useContext(OriginContext);
     const { destination, dispatchDestination } = useContext(DestinationContext);
 
-    // États pour la recherche et les suggestions
     const [activeInput, setActiveInput] = useState(null);
     const [locations, setLocations] = useState([]);
     const [loading, setLoading] = useState(false);
     const [filteredLocations, setFilteredLocations] = useState([]);
+    const [acceptedOrder, setAcceptedOrder] = useState(null);
+    const [modalVisible, setModalVisible] = useState(false);
+    const [showAcceptanceNotification, setShowAcceptanceNotification] = useState(false);
+    const [acceptedOrderInfo, setAcceptedOrderInfo] = useState(null);
 
     const [userOrigin, setUserOrigin] = useState({
         latitude: origin?.latitude || null,
@@ -46,7 +73,6 @@ export default function RequestScreen({ navigation }) {
         address: ''
     });
 
-    // Centre initial de la carte (Abidjan)
     const initialRegion = {
         latitude: 5.3600,
         longitude: -4.0083,
@@ -54,49 +80,40 @@ export default function RequestScreen({ navigation }) {
         longitudeDelta: 0.0421
     };
 
-    // Références pour les inputs
     const originInputRef = useRef(null);
     const destinationInputRef = useRef(null);
 
-    // Fonction pour récupérer les lieux d'Abidjan
     const fetchAbidjanLocations = async () => {
         setLoading(true);
-        const overpassUrl = 'https://overpass-api.de/api/interpreter';
-        const query = `
-            [out:json];
-            area["name"="Abidjan"]->.searchArea;
-            (
-                node["place"="suburb"](area.searchArea);
-                node["place"="town"](area.searchArea);
-                way["highway"](area.searchArea);
-                node["highway"="junction"](area.searchArea);
-                node["landuse"="park"](area.searchArea);
-                node["amenity"="hotel"](area.searchArea);
-                node["amenity"="restaurant"](area.searchArea);
-                node["amenity"="cafe"](area.searchArea);
-                node["amenity"="school"](area.searchArea);
-                node["amenity"="hospital"](area.searchArea);
-                node["amenity"="fuel"](area.searchArea);
-                node["amenity"="bank"](area.searchArea);
-                node["shop"](area.searchArea);
-            );
-            out body;
-        `;
+        const googlePlacesUrl = 'https://maps.googleapis.com/maps/api/place/nearbysearch/json';
 
         try {
-            const response = await axios.post(overpassUrl, query, {
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            const response = await axios.get(googlePlacesUrl, {
+                params: {
+                    location: '5.3600,-4.0083',
+                    radius: 10000,
+                    type: [
+                        'restaurant',
+                        'hotel',
+                        'school',
+                        'hospital',
+                        'shopping_mall',
+                        'bank',
+                        'gas_station',
+                        'point_of_interest'
+                    ].join('|'),
+                    key: GOOGLE_MAPS_APIKEY
+                }
             });
 
-            const allData = response.data.elements
-                .filter((element) => element.tags && element.tags.name)
-                .map((location) => ({
-                    id: location.id,
-                    name: location.tags.name,
-                    type: location.tags.place || location.tags.highway || location.tags.landuse || location.tags.amenity || 'Lieu',
-                    lat: location.lat,
-                    lon: location.lon,
-                }));
+            const allData = response.data.results.map((location) => ({
+                id: location.place_id,
+                name: location.name,
+                type: location.types[0] || 'Lieu',
+                lat: location.geometry.location.lat,
+                lon: location.geometry.location.lng,
+            }));
+
             setLocations(allData);
         } catch (error) {
             console.error("Erreur lors de la récupération des lieux:", error);
@@ -106,113 +123,90 @@ export default function RequestScreen({ navigation }) {
     };
 
     useEffect(() => {
-        fetchAbidjanLocations();
-    }, []);
-    const notificationListener = useRef();
-    const responseListener = useRef();
+        if (auth.currentUser) {
+            const userId = auth.currentUser.uid;
+            
+            socketService.connect();
 
-    useEffect(() => {
-        registerForPushNotificationsAsync();
-        setUpNotificationListeners();
-
-        // Nettoyage lors du démontage du composant
-        return () => {
-            if (notificationListener.current) {
-                Notifications.removeNotificationSubscription(notificationListener.current);
-            }
-            if (responseListener.current) {
-                Notifications.removeNotificationSubscription(responseListener.current);
-            }
-        };
-    }, []);
-
-    const registerForPushNotificationsAsync = async () => {
-        if (!Device.isDevice) {
-            Alert.alert('Notification non disponible', 'Les notifications ne fonctionnent pas sur l\'émulateur');
-            return;
-        }
-
-        try {
-            const { status: existingStatus } = await Notifications.getPermissionsAsync();
-            let finalStatus = existingStatus;
-
-            if (existingStatus !== 'granted') {
-                const { status } = await Notifications.requestPermissionsAsync();
-                finalStatus = status;
-            }
-
-            if (finalStatus !== 'granted') {
-                Alert.alert('Erreur', 'Les notifications sont nécessaires pour recevoir les informations du chauffeur');
-                return;
-            }
-
-            // Obtenir le token Expo
-            const tokenData = await Notifications.getExpoPushTokenAsync({
-                projectId: '57e70b0c-f485-44cc-bfb9-b6868dcbde3f', // Remplacer par votre ID de projet Expo
+            socketService.socket.on('order:accepted', (data) => {
+                console.log('Commande acceptée, données reçues:', data);
+                if (data.clientId === userId) {
+                    setAcceptedOrderInfo(data.driverInfo);
+                    setShowAcceptanceNotification(true);
+                }
             });
 
-            // Sauvegarder le token dans Firestore pour l'utilisateur actuel
-            const userId = auth.currentUser?.uid;
-            if (userId) {
-                await updateDoc(doc(db, 'users', userId), {
-                    token: tokenData.data,
-                    lastUpdated: new Date()
-                });
-            }
+            return () => {
+                socketService.socket.off('order:accepted');
+                socketService.disconnect();
+            };
+        }
+    }, []);
 
+    // Ajoutez cette fonction pour gérer la fermeture de la notification
+    const handleCloseNotification = () => {
+        setShowAcceptanceNotification(false);
+        setAcceptedOrderInfo(null);
+    };
+
+    useEffect(() => {
+        fetchAbidjanLocations();
+    }, []);
+
+    const fetchPlaceDetails = async (placeId) => {
+        try {
+            const response = await axios.get('https://maps.googleapis.com/maps/api/place/details/json', {
+                params: {
+                    place_id: placeId,
+                    key: GOOGLE_MAPS_APIKEY,
+                    fields: 'geometry,name,formatted_address,types'
+                }
+            });
+
+            const result = response.data.result;
+            return {
+                latitude: result.geometry.location.lat,
+                longitude: result.geometry.location.lng,
+                address: result.formatted_address || result.name,
+                name: result.name,
+                type: result.types[0] || 'Lieu'
+            };
         } catch (error) {
-            console.error('Erreur lors de l\'enregistrement des notifications:', error);
+            console.error("Erreur lors de la récupération des détails du lieu:", error);
+            return null;
         }
     };
 
-    const setUpNotificationListeners = () => {
-        // Écouteur pour les notifications reçues quand l'app est ouverte
-        notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
-            const { title, body, data } = notification.request.content;
-    
-            console.log("Notification reçue:", { title, body, data });
-    
-            if (data?.type === 'ORDER_ACCEPTED') {
-                // Afficher une alerte avec les informations du chauffeur
-                Alert.alert(
-                    title,
-                    body,
-                    [
-                        {
-                            text: 'OK',
-                            onPress: () => navigation.navigate('OrderTracking', {
-                                driverInfo: data.driverInfo,
-                                orderDetails: data.orderDetails
-                            })
-                        }
-                    ]
-                );
-            }
-        });
-    
-        // Écouteur pour quand l'utilisateur clique sur la notification
-        responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-            const { data } = response.notification.request.content;
-    
-            console.log("Notification cliquée:", { data });
-    
-            if (data?.type === 'ORDER_ACCEPTED') {
-                // Naviguer vers l'écran de suivi de commande
-                navigation.navigate('OrderTracking', {
-                    driverInfo: data.driverInfo,
-                    orderDetails: data.orderDetails
-                });
-            }
-        });
+    const searchPlacesAutocomplete = async (query) => {
+        try {
+            const response = await axios.get('https://maps.googleapis.com/maps/api/place/autocomplete/json', {
+                params: {
+                    input: query,
+                    location: '5.3600,-4.0083',
+                    radius: 10000,
+                    key: GOOGLE_MAPS_APIKEY
+                }
+            });
+
+            const suggestions = response.data.predictions.map(prediction => ({
+                id: prediction.place_id,
+                name: prediction.description,
+                type: 'Suggestion'
+            }));
+
+            setFilteredLocations(suggestions);
+        } catch (error) {
+            console.error("Erreur lors de la recherche de lieux:", error);
+        }
     };
-    
+
+    useEffect(() => {
+        fetchAbidjanLocations();
+    }, []);
 
     const handleSearch = (text, type) => {
         if (text.length > 1) {
-            const filtered = locations.filter((location) =>
-                location.name.toLowerCase().includes(text.toLowerCase())
-            );
-            setFilteredLocations(filtered);
+            searchPlacesAutocomplete(text);
         } else {
             setFilteredLocations([]);
         }
@@ -224,34 +218,53 @@ export default function RequestScreen({ navigation }) {
         }
     };
 
-    const handleSelectLocation = (item, type) => {
-        const mappedItem = {
-            latitude: parseFloat(item.lat),
-            longitude: parseFloat(item.lon),
-            address: item.name,
-        };
+    const handleSelectLocation = async (item, type) => {
+        setLoading(true);
+        try {
+            const placeDetails = await fetchPlaceDetails(item.id);
 
-        if (type === 'origin') {
-            setUserOrigin(mappedItem);
-            dispatchOrigin({
-                type: 'ADD_ORIGIN',
-                payload: { ...mappedItem, type: item.type, name: item.name },
-            });
-        } else {
-            setUserDestination(mappedItem);
-            dispatchDestination({
-                type: 'ADD_DESTINATION',
-                payload: { ...mappedItem, type: item.type, name: item.name },
-            });
+            if (placeDetails) {
+                const mappedItem = {
+                    latitude: placeDetails.latitude,
+                    longitude: placeDetails.longitude,
+                    address: placeDetails.address,
+                };
+
+                if (type === 'origin') {
+                    setUserOrigin(mappedItem);
+                    dispatchOrigin({
+                        type: 'ADD_ORIGIN',
+                        payload: {
+                            ...mappedItem,
+                            type: placeDetails.type,
+                            name: placeDetails.name
+                        },
+                    });
+                } else {
+                    setUserDestination(mappedItem);
+                    dispatchDestination({
+                        type: 'ADD_DESTINATION',
+                        payload: {
+                            ...mappedItem,
+                            type: placeDetails.type,
+                            name: placeDetails.name
+                        },
+                    });
+                }
+            }
+        } catch (error) {
+            console.error("Erreur lors de la sélection du lieu:", error);
+        } finally {
+            setActiveInput(null);
+            setFilteredLocations([]);
+            setLoading(false);
         }
-        setActiveInput(null);
-        setFilteredLocations([]);
     };
 
     return (
         <View style={styles.container}>
             <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
-            
+
             <LinearGradient
                 colors={['rgba(255,255,255,0.95)', 'rgba(255,255,255,0.85)']}
                 style={styles.headerContainer}
@@ -358,6 +371,40 @@ export default function RequestScreen({ navigation }) {
                 userDestination={userDestination}
                 navigation={navigation}
             />
+
+            {/* <Modal
+                animationType="slide"
+                transparent={true}
+                visible={modalVisible}
+                onRequestClose={() => {
+                    setModalVisible(!modalVisible);
+                }}
+            >
+                <View style={styles.centeredView}>
+                    <View style={styles.modalView}>
+                        <Text style={styles.modalTitle}>Course acceptée!</Text>
+                        <Text style={styles.modalText}>
+                            Votre chauffeur {acceptedOrder?.driverName} arrive bientôt.
+                            {'\n'}Téléphone: {acceptedOrder?.driverPhone}
+                        </Text>
+                        <TouchableOpacity
+                            style={styles.modalButton}
+                            onPress={() => {
+                                setModalVisible(!modalVisible);
+                                navigation.navigate('OrderTracking', { orderDetails: acceptedOrder });
+                            }}
+                        >
+                            <Text style={styles.modalButtonText}>Voir les détails</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal> */}
+             <OrderAcceptanceNotification 
+        isVisible={showAcceptanceNotification}
+        driverInfo={acceptedOrderInfo}
+        onClose={handleCloseNotification}
+        navigation={navigation}
+      />
         </View>
     );
 }
@@ -406,7 +453,6 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: colors.grey2
     },
-   
     suggestionText: {
         fontSize: 16,
         color: colors.grey1
@@ -473,6 +519,20 @@ const styles = StyleSheet.create({
         zIndex: 99,
         overflow: 'hidden',
     },
+    banner: {
+        backgroundColor: colors.success,
+        padding: 15,
+        borderRadius: 10,
+        marginBottom: 20,
+        width: '100%',
+        alignItems: 'center',
+    },
+    bannerText: {
+        color: colors.white,
+        fontSize: 18,
+        fontWeight: 'bold',
+        textAlign: 'center',
+    },
     loadingContainer: {
         padding: 20,
         alignItems: 'center',
@@ -511,7 +571,6 @@ const styles = StyleSheet.create({
         color: '#666',
         marginTop: 2,
     },
-    
     view1: {
         position: "absolute",
         top: 30,
@@ -522,7 +581,6 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         justifyContent: "center",
         alignItems: "center",
-      
         marginTop: 19,
         zIndex: 10
     },
@@ -530,16 +588,12 @@ const styles = StyleSheet.create({
         backgroundColor: colors.white,
         zIndex: 4,
         paddingBottom: 10,
-
-        
     },
     view3: {
         flexDirection: "row",
         alignItems: "center",
         paddingLeft: 10,
         paddingVertical: 18,
-        
-        
     },
     view4: {
         flexDirection: "row",
@@ -576,5 +630,58 @@ const styles = StyleSheet.create({
         marginLeft: 10,
         fontSize: 16,
         color: colors.grey2
-    }
+    },
+    centeredView: {
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+        marginTop: 22
+    },
+    centeredView: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)'
+      },
+      modalView: {
+        margin: 20,
+        backgroundColor: 'white',
+        borderRadius: 20,
+        padding: 35,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: {
+          width: 0,
+          height: 2
+        },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+        elevation: 5,
+        width: '80%'
+      },
+      modalTitle: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        marginBottom: 15,
+        textAlign: 'center'
+      },
+      modalText: {
+        fontSize: 16,
+        marginBottom: 20,
+        textAlign: 'center',
+        lineHeight: 24
+      },
+      modalButton: {
+        backgroundColor: colors.blue,
+        borderRadius: 10,
+        padding: 15,
+        elevation: 2,
+        width: '100%'
+      },
+      modalButtonText: {
+        color: 'white',
+        fontWeight: 'bold',
+        textAlign: 'center',
+        fontSize: 16
+      }
 });

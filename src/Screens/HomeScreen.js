@@ -21,6 +21,7 @@ import { mapStyle } from '../global/mapStyle';
 import { colors } from "../global/style";
 import { auth, db } from '../../firebaseConfig'; // Assurez-vous que vous avez importé auth et db
 import { doc, getDoc } from 'firebase/firestore';
+import RecentDestinations from "../../recentDestinations";
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -79,7 +80,7 @@ const HomeScreen = ({ navigation }) => {
           const userDoc = await getDoc(userDocRef);
           if (userDoc.exists()) {
             const userData = userDoc.data();
-            setUserName(userData.username); // Assurez-vous que le nom de l'utilisateur est stocké sous 'name'
+            setUserName(userData.username); 
           }
         }
       } catch (error) {
@@ -243,7 +244,8 @@ const HomeScreen = ({ navigation }) => {
               subtitle: "Bel-Air"
             })}
           </View> */}
-
+          
+          <RecentDestinations/> 
           <View style={styles.mapSection}>
             <Text style={styles.sectionTitle}>Vous êtes ici </Text>
             <View style={styles.mapContainer}>

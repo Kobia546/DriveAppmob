@@ -29,7 +29,7 @@ import Animated, {
   FadeInUp, 
   SlideInRight 
 } from 'react-native-reanimated';
-
+import { socketService } from "../../clientSocket";
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -135,19 +135,43 @@ const DriverHomeScreen = ({ navigation }) => {
   const [dailyStats, setDailyStats] = useState({ totalEarnings: 0, completedRides: 0 });
   const [acceptedRides, setAcceptedRides] = useState([]);
   const _map = useRef(null);
-
   useEffect(() => {
     const initializeApp = async () => {
-      await Promise.all([
-        getLocation(),
-        registerForPushNotificationsAsync(),
-        fetchDriverName(),
-        fetchDriverOrders()
-      ]);
+        try {
+            await Promise.all([
+                getLocation(),
+                fetchDriverName(),
+                fetchDriverOrders()
+            ]);
+
+            // Initialize socket connection
+            socketService.connect();
+            
+            // Add delay before connecting as driver
+            setTimeout(() => {
+                const driverId = auth.currentUser?.uid;
+                if (driverId) {
+                    socketService.connectAsDriver(driverId);
+                    console.log('Connected as driver:', driverId);
+                }
+            }, 1000);
+
+            // Listen for new orders
+            socketService.onNewOrder((orderDetails) => {
+                console.log('New order received in driver screen:', orderDetails);
+                navigation.navigate('AcceptOrderScreen', { orderDetails });
+            });
+        } catch (error) {
+            console.error('Error initializing app:', error);
+        }
     };
 
     initializeApp();
-  }, []);
+
+    return () => {
+        socketService.disconnect();
+    };
+}, []);
 
   const getLocation = async () => {
     try {
@@ -175,23 +199,7 @@ const DriverHomeScreen = ({ navigation }) => {
     }
   };
 
-  const registerForPushNotificationsAsync = async () => {
-    try {
-      const { status } = await Notifications.requestPermissionsAsync();
-      if (status !== 'granted') return;
-
-      const token = (await Notifications.getExpoPushTokenAsync({
-        projectId: '57e70b0c-f485-44cc-bfb9-b6868dcbde3f'
-      })).data;
-
-      const userId = auth.currentUser.uid;
-      const driverRef = doc(db, 'drivers', userId);
-      await updateDoc(driverRef, { token });
-    } catch (error) {
-      console.error('Error registering for notifications:', error);
-    }
-  };
-
+ 
   const fetchDriverOrders = async () => {
     try {
       const userId = auth.currentUser.uid;

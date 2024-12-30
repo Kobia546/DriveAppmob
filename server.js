@@ -1,53 +1,61 @@
-// server.js
 const express = require('express');
-const bodyParser = require('body-parser');
-const multer = require('multer');
-const mysql = require('mysql2');
-const path = require('path')
-const db = require('./db'); 
+const { createServer } = require('http');
+const { Server } = require('socket.io');
+const cors = require('cors');
+
 
 const app = express();
-app.use(bodyParser.json()); 
+app.use(cors());
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
 
+// Stockage des connexions de chauffeurs
+const connectedDrivers = new Map();
 
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-      cb(null, './uploads'); 
-    },
-    filename: (req, file, cb) => {
-      cb(null, `${Date.now()}-${file.originalname}`);
-    },
+io.on('connection', (socket) => {
+  console.log('Nouvelle connexion:', socket.id);
+
+  // Gestion de la connexion d'un chauffeur
+  socket.on('driver:connect', (driverId) => {
+    connectedDrivers.set(driverId, socket.id);
+    console.log(`Chauffeur ${driverId} connecté`);
   });
-  const upload = multer({ storage });
-  app.post('/api/drivers/register', upload.fields([{ name: 'licenseImage' }, { name: 'idCardImage' }]), (req, res) => {
-    const { name, email, phoneNumber } = req.body;
-    const licenseImage = req.files['licenseImage'][0].path; 
-    const idCardImage = req.files['idCardImage'][0].path; 
-  
-    const sql = 'INSERT INTO drivers (name, email, phoneNumber, licenseImage, idCardImage) VALUES (?, ?, ?, ?, ?)';
-    db.query(sql, [name, email, phoneNumber, licenseImage, idCardImage], (error, results) => {
-      if (error) {
-        return res.status(500).json({ message: 'Erreur lors de l\'inscription', error });
-      }
-      res.status(201).json({ message: 'Chauffeur inscrit avec succès' });
+
+  // Réception d'une nouvelle commande
+  socket.on('new:order', (orderData) => {
+    // Envoyer la commande à tous les chauffeurs connectés
+    connectedDrivers.forEach((socketId) => {
+      io.to(socketId).emit('order:available', orderData);
     });
   });
-app.post('/register', (req, res) => {
-  const { email, password, user, carPhoto } = req.body;
 
+  // Gestion de l'acceptation d'une commande
+  socket.on('order:accept', ({ orderId, driverId, clientId }) => {
+    // Notifier le client que sa commande a été acceptée
+    io.emit(`order:accepted:${clientId}`, {
+      orderId,
+      driverId
+    });
+  });
 
-  const sql = 'INSERT INTO users (email, password, username, carPhoto) VALUES (?, ?, ?, ?)';
-  db.query(sql, [email, password, user, carPhoto], (err, result) => {
-    if (err) {
-      console.error('Erreur d\'insertion : ', err);
-      return res.status(500).json({ error: 'Erreur lors de l\'inscription' });
+  // Déconnexion
+  socket.on('disconnect', () => {
+    // Retirer le chauffeur de la liste des connectés
+    for (const [driverId, socketId] of connectedDrivers.entries()) {
+      if (socketId === socket.id) {
+        connectedDrivers.delete(driverId);
+        console.log(`Chauffeur ${driverId} déconnecté`);
+        break;
+      }
     }
-    res.json({ message: 'Inscription réussie' });
   });
 });
 
-// Lancer le serveur
-const PORT = 3000;
-app.listen(PORT, () => {
-  console.log(`Serveur lancé sur le port ${PORT}`);
+httpServer.listen(3000, () => {
+  console.log('Serveur WebSocket démarré sur le port 3000');
 });
