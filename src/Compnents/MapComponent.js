@@ -15,6 +15,7 @@ import { socketService } from '../../clientSocket';
 import SearchingBottomSheet from '../../SearchingBottomSheet';
 
 const GOOGLE_MAPS_APIKEY = 'AIzaSyBFu_n9UIVYrbGWhl88xzQM5gtPTUk1bm8';
+
 const fetchLocationName = async (latitude, longitude) => {
   const overpassUrl = `https://overpass-api.de/api/interpreter?data=[out:json];node(around:10,${latitude},${longitude});out;`;
   
