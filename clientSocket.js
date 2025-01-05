@@ -3,7 +3,7 @@ import { io } from 'socket.io-client';
 class SocketService {
   constructor() {
     this.socket = null;
-    this.serverUrl = 'http://192.168.80.9:3000';
+    this.serverUrl = 'http://192.168.106.71:3000';
     this.isConnected = false;
   }
 
