@@ -1,41 +1,56 @@
-const path = require("path");
+const path = require('path');
 
 module.exports = {
-  mode: "development",
-  entry: "./index.js", // Your entry point
+  mode: 'development',
+  entry: './index.js',
   output: {
-    path: path.resolve(__dirname, "dist"),
-    filename: "bundle.js", // Output bundle
+    path: path.resolve(__dirname, 'dist'),
+    filename: 'bundle.js',
   },
-  devtool: "eval-cheap-source-map", // Source map for easier debugging
-  watch: true, // Watch files for changes
+  devtool: 'eval-cheap-source-map',
+  watch: true,
   resolve: {
     alias: {
-      // Alias for React Native specific modules, you may need react-native-web
-      'react-native$': 'react-native-web', 
+      'react-native$': 'react-native-web',
+      // Add aliases for commonly used react-native libraries
+      'react-native-reanimated': 'react-native-reanimated/lib/commonjs',
+      'react-native-screens': 'react-native-screens/lib/commonjs',
     },
-    extensions: ['.js', '.jsx', '.ts', '.tsx'], // Handle different file extensions
+    extensions: ['.web.js', '.js', '.jsx', '.ts', '.tsx'],
+    fallback: {
+      "crypto": false,
+      "stream": false,
+      "path": false,
+      "fs": false
+    }
   },
   module: {
     rules: [
-      // JS and JSX loader
       {
-        test: /\.jsx?$/,
-        exclude: /node_modules/,
+        test: /\.(js|jsx|ts|tsx)$/,
+        exclude: /node_modules\/(?!(react-native|react-native-reanimated|react-native-screens|@react-native|react-native-safe-area-context)\/).*/,
         use: {
           loader: 'babel-loader',
           options: {
-            presets: ['@babel/preset-env', '@babel/preset-react'],
+            presets: [
+              '@babel/preset-env',
+              '@babel/preset-react',
+              '@babel/preset-typescript',
+              'module:metro-react-native-babel-preset'
+            ],
+            plugins: [
+              '@babel/plugin-proposal-class-properties',
+              '@babel/plugin-transform-runtime',
+              'react-native-reanimated/plugin'
+            ]
           },
         },
       },
-      // TypeScript loader (if you are using TypeScript)
       {
         test: /\.tsx?$/,
         exclude: /node_modules/,
         use: 'ts-loader',
       },
-      // Handle assets like images, fonts, etc. (optional, if needed)
       {
         test: /\.(png|jpg|jpeg|gif|svg|woff|woff2|eot|ttf|otf)$/,
         use: 'file-loader',
