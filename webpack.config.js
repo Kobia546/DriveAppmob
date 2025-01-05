@@ -27,10 +27,7 @@ module.exports = {
       {
         test: /\.(js|jsx|ts|tsx)$/,
         exclude: /node_modules\/(?!(react-native|react-native-reanimated|react-native-screens|@react-native|react-native-safe-area-context)\/).*/,
-        use: {
-          loader: 'babel-loader'
-          // Removed babel options from here - they're now managed entirely in babel.config.js
-        },
+        use: 'babel-loader'
       },
       {
         test: /\.(png|jpg|jpeg|gif|svg|woff|woff2|eot|ttf|otf)$/,

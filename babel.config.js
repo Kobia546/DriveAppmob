@@ -1,7 +1,7 @@
 module.exports = function(api) {
   api.cache(true);
   
-  const loose = true; // Ensure consistent loose mode across all plugins
+  const loose = true;
   
   return {
     presets: [
@@ -22,13 +22,6 @@ module.exports = function(api) {
         path: ".env",
       }],
       'react-native-reanimated/plugin' // Keep this last
-    ],
-    env: {
-      production: {
-        plugins: [
-          ['transform-remove-console']
-        ]
-      }
-    }
+    ]
   };
 };
