@@ -14,7 +14,6 @@ module.exports = {
       'react-native-maps': 'react-native-web-maps',
       'react-native-reanimated': 'react-native-reanimated/lib/module/web',
       '@react-native': '@react-native-web',
-      // Add aliases for other problematic packages
       'react-native-svg': 'react-native-svg-web',
       'react-native-vector-icons': 'react-native-vector-icons/dist/web',
     },
@@ -39,7 +38,8 @@ module.exports = {
               '@babel/plugin-proposal-class-properties',
               '@babel/plugin-transform-runtime',
               'react-native-web',
-            ]
+              process.env.NODE_ENV === 'production' ? 'transform-remove-console' : null
+            ].filter(Boolean)
           }
         }
       },

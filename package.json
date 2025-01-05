@@ -104,6 +104,7 @@
     "@react-native-community/cli": "^15.0.1",
     "@svgr/webpack": "^8.1.0",
     "babel-loader": "^9.2.1",
+    "babel-plugin-transform-remove-console": "^6.9.4",
     "file-loader": "^6.2.0",
     "metro-react-native-babel-preset": "^0.77.0",
     "react-native-svg-web": "^1.0.9",
