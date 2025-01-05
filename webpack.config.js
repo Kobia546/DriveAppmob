@@ -1,18 +1,16 @@
 const path = require('path');
 
 module.exports = {
-  mode: 'development',
+  mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
   entry: './index.js',
   output: {
     path: path.resolve(__dirname, 'dist'),
     filename: 'bundle.js',
+    publicPath: '/',
   },
-  devtool: 'eval-cheap-source-map',
-  watch: true,
   resolve: {
     alias: {
       'react-native$': 'react-native-web',
-      // Add aliases for commonly used react-native libraries
       'react-native-reanimated': 'react-native-reanimated/lib/commonjs',
       'react-native-screens': 'react-native-screens/lib/commonjs',
     },
@@ -30,30 +28,19 @@ module.exports = {
         test: /\.(js|jsx|ts|tsx)$/,
         exclude: /node_modules\/(?!(react-native|react-native-reanimated|react-native-screens|@react-native|react-native-safe-area-context)\/).*/,
         use: {
-          loader: 'babel-loader',
-          options: {
-            presets: [
-              '@babel/preset-env',
-              '@babel/preset-react',
-              '@babel/preset-typescript',
-              'module:metro-react-native-babel-preset'
-            ],
-            plugins: [
-              '@babel/plugin-proposal-class-properties',
-              '@babel/plugin-transform-runtime',
-              'react-native-reanimated/plugin'
-            ]
-          },
+          loader: 'babel-loader'
+          // Removed babel options from here - they're now managed entirely in babel.config.js
         },
       },
       {
-        test: /\.tsx?$/,
-        exclude: /node_modules/,
-        use: 'ts-loader',
-      },
-      {
         test: /\.(png|jpg|jpeg|gif|svg|woff|woff2|eot|ttf|otf)$/,
-        use: 'file-loader',
+        use: {
+          loader: 'file-loader',
+          options: {
+            name: '[name].[ext]',
+            outputPath: 'assets/',
+          },
+        },
       },
     ],
   },
