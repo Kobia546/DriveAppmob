@@ -11,34 +11,62 @@ module.exports = {
   resolve: {
     alias: {
       'react-native$': 'react-native-web',
-      'react-native-reanimated': 'react-native-reanimated/lib/commonjs',
-      'react-native-screens': 'react-native-screens/lib/commonjs',
+      'react-native-maps': 'react-native-web-maps',
+      'react-native-reanimated': 'react-native-reanimated/lib/module/web',
+      '@react-native': '@react-native-web',
+      // Add aliases for other problematic packages
+      'react-native-svg': 'react-native-svg-web',
+      'react-native-vector-icons': 'react-native-vector-icons/dist/web',
     },
-    extensions: ['.web.js', '.js', '.jsx', '.ts', '.tsx'],
+    extensions: ['.web.js', '.web.tsx', '.web.ts', '.web.jsx', '.js', '.jsx', '.ts', '.tsx'],
     fallback: {
-      "crypto": false,
-      "stream": false,
-      "path": false,
-      "fs": false
+      crypto: false,
+      stream: false,
+      path: false,
+      fs: false
     }
   },
   module: {
     rules: [
       {
         test: /\.(js|jsx|ts|tsx)$/,
-        exclude: /node_modules\/(?!(react-native|react-native-reanimated|react-native-screens|@react-native|react-native-safe-area-context)\/).*/,
-        use: 'babel-loader'
+        exclude: /node_modules\/(?!(react-native|@react-native|react-native-.*|@react-navigation\/.*|@expo.*)\/).*/,
+        use: {
+          loader: 'babel-loader',
+          options: {
+            presets: ['@babel/preset-react', '@babel/preset-env'],
+            plugins: [
+              '@babel/plugin-proposal-class-properties',
+              '@babel/plugin-transform-runtime',
+              'react-native-web',
+            ]
+          }
+        }
       },
       {
-        test: /\.(png|jpg|jpeg|gif|svg|woff|woff2|eot|ttf|otf)$/,
+        test: /\.(png|jpg|jpeg|gif)$/i,
+        use: {
+          loader: 'url-loader',
+          options: {
+            limit: 8192,
+            name: 'static/media/[name].[hash:8].[ext]',
+          },
+        },
+      },
+      {
+        test: /\.svg$/,
+        use: ['@svgr/webpack'],
+      },
+      {
+        test: /\.(woff|woff2|eot|ttf|otf)$/,
         use: {
           loader: 'file-loader',
           options: {
-            name: '[name].[ext]',
-            outputPath: 'assets/',
+            name: 'static/media/[name].[hash:8].[ext]',
           },
         },
       },
     ],
   },
+  plugins: []
 };

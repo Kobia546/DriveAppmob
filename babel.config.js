@@ -1,27 +1,38 @@
 module.exports = function(api) {
   api.cache(true);
   
-  const loose = true;
-  
   return {
     presets: [
-      ['@babel/preset-env', { loose }],
+      ['@babel/preset-env', { 
+        targets: {
+          node: 'current',
+          browsers: ['last 2 versions', 'ie >= 11']
+        },
+        modules: false,
+        loose: true
+      }],
       '@babel/preset-react',
-      ['babel-preset-expo', { loose }]
+      ['babel-preset-expo', { loose: true }]
     ],
     plugins: [
-      // Class features plugins with consistent loose mode
-      ['@babel/plugin-transform-class-properties', { loose }],
-      ['@babel/plugin-transform-private-methods', { loose }],
-      ['@babel/plugin-transform-private-property-in-object', { loose }],
-      
-      // Additional necessary plugins
-      '@babel/plugin-transform-runtime',
-      ["module:react-native-dotenv", {
-        moduleName: "@env",
-        path: ".env",
+      ['@babel/plugin-transform-runtime', {
+        helpers: true,
+        regenerator: true
       }],
-      'react-native-reanimated/plugin' // Keep this last
-    ]
+      ['@babel/plugin-transform-class-properties', { loose: true }],
+      ['@babel/plugin-transform-private-methods', { loose: true }],
+      ['@babel/plugin-transform-private-property-in-object', { loose: true }],
+      ['module:react-native-dotenv', {
+        moduleName: '@env',
+        path: '.env',
+      }],
+      'react-native-web',
+      'react-native-reanimated/plugin'
+    ],
+    env: {
+      production: {
+        plugins: ['transform-remove-console']
+      }
+    }
   };
 };
