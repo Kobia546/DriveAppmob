@@ -9,23 +9,23 @@ const { width: WindowWidth } = Dimensions.get('window');
 const Slide = [
   {
     id: 1,
-    title: "Bienvue dans l'application revolutionnaire du transport ivoirien; Voyez d'une maniere differente les maniere de faire vos courses",
+    title: "Vous avez un véhicule , Bienvenue dans l'application qui révolutionne la manière de faire vos courses",
     image: require("../../assets/Bienvenue.png")
   },
   {
     id: 2,
-    title: "Vous êtes fatigué?Ivre? Laissez nous vous conduire ",
+    title: " Fatigué? Occupé? Laissez nous conduire.",
     image: require("../../assets/First.png")
   },
   {
       id: 3,  
-      title: "Vous avez du travail?Etes en reunion? Confiez nous vos voitures",
+      title: "Vous avez du travail, vous êtes en réunion? Votre temps est précieux, confiez-nous vos courses.",
       image: require("../../assets/Busy.png"),
     },
     {
         id: 4,
-        title: "N'ayez Craintes tous nos chauffeurs ont suivi une formation en plus il sont tous certifiés ",
-        image: require("../../assets/Certfied.png"),
+        title: "N'ayez Crainte, tous nos chauffeurs sont des professionnels formés et sont certifiés.",
+        image: require("../../assets/verification.png"),
         isLastSlide: true,
     }, 
 ];
@@ -56,7 +56,7 @@ export default function PremierPage() {
         <Pressable style={styles.button} onPress={handleStartAdventure}>
           {({ pressed }) => (
             <Text style={[styles.buttonText, { opacity: pressed ? 0.5 : 1 }]}>
-              Deviens membre
+              Commencer
             </Text>
           )}
         </Pressable>
@@ -99,6 +99,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: ' #00ff00',
     bottom:25,
+    top:30,
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: Platform.OS === 'android' ? StatusBar.height : 0,
@@ -111,20 +112,26 @@ const styles = StyleSheet.create({
   image: {
     width: 200,
     height: 200,
+    top:40,
+    left:10,
     resizeMode: 'contain',
   },
   title: {
-    fontSize: 20,
+    fontSize: 23,
     fontWeight: 'bold',
     marginVertical: 10,
+    paddingLeft:20,
+    top:120,
+    
     
   },
   button: {
-    backgroundColor: 'blue',
+    backgroundColor: '#1b5988',
     padding: 20,
     borderRadius: 10,
-    marginLeft: 150,
-    marginTop: 150,
+    marginLeft: 200,
+    marginTop: 200,
+   
   },
   buttonText: {
     color: 'white',

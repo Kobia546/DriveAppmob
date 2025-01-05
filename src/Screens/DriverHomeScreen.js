@@ -1,60 +1,130 @@
-import React, { useEffect, useState, useRef } from "react";
-import { StyleSheet, Text, View, Dimensions, TouchableOpacity, SafeAreaView, ScrollView } from "react-native";
-import MapView, { PROVIDER_GOOGLE } from "react-native-maps";
-import { updateDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import React, { useEffect, useState } from "react";
+import { 
+  StyleSheet, 
+  Text, 
+  View, 
+  Dimensions, 
+  TouchableOpacity, 
+  SafeAreaView, 
+  ScrollView 
+} from "react-native";
 import { StatusBar } from "expo-status-bar";
 import * as Location from 'expo-location';
+import { updateDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../../firebaseConfig';
 import { doc } from 'firebase/firestore';
 import * as Notifications from 'expo-notifications';
+import { useRef } from "react";
+import { 
+  Wallet, 
+  Car, 
+  MapPin, 
+  Clock, 
+  User, 
+  DollarSign, 
+  Navigation 
+} from 'lucide-react-native';
+import Animated, { 
+  FadeInDown, 
+  FadeInUp, 
+  SlideInRight 
+} from 'react-native-reanimated';
+import { socketService } from "../../clientSocket";
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
-const DailyEarningsCard = ({ totalEarnings, completedRides }) => (
-  <View style={styles.earningsCard}>
-    <View style={styles.earningsHeader}>
-      <Text style={styles.earningsTitle}>Gains du jour</Text>
-      <Text style={styles.earningsAmount}>{totalEarnings?.toLocaleString() || '0'} FCFA</Text>
+const StatCard = ({ icon: Icon, value, label, color }) => (
+  <View style={styles.statCard}>
+    <View style={[styles.statIconContainer, { backgroundColor: color }]}>
+      <Icon color="white" size={20} />
     </View>
-    <View style={styles.divider} />
-    <View style={styles.statsContainer}>
-      <View style={styles.statItem}>
-        <Text style={styles.statValue}>{completedRides || 0}</Text>
-        <Text style={styles.statLabel}>Courses</Text>
-      </View>
-      <View style={styles.statItem}>
-        <Text style={styles.statValue}>
-          {completedRides ? (totalEarnings / completedRides).toLocaleString() : '0'}
-        </Text>
-        <Text style={styles.statLabel}>Moy/Course</Text>
-      </View>
+    <View style={styles.statTextContainer}>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
     </View>
   </View>
 );
 
+const DailyEarningsCard = ({ totalEarnings, completedRides }) => {
+  const averageEarningsPerRide = completedRides 
+    ? (totalEarnings / completedRides).toFixed(0)
+    : '0';
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.headerContainer}>
+        <View style={styles.headerTextContainer}>
+          <Wallet color="#1a73e8" size={24} />
+          <Text style={styles.headerText}>Rapport Journalier</Text>
+        </View>
+        <Text style={styles.totalEarningsText}>
+          {totalEarnings?.toLocaleString() || '0'} XOF
+        </Text>
+      </View>
+      
+      <View style={styles.statsContainer}>
+        <StatCard 
+          icon={Car}
+          value={completedRides || '0'}
+          label="Courses"
+          color="#4CAF50"
+        />
+        <StatCard 
+          icon={DollarSign}
+          value={averageEarningsPerRide}
+          label="Moy/Course"
+          color="#FF9800"
+        />
+      </View>
+    </View>
+  );
+};
 const AcceptedRidesSection = ({ acceptedRides, onRidePress }) => (
   <View style={styles.acceptedRidesContainer}>
     <Text style={styles.sectionTitle}>Mes courses du jour</Text>
-    <View style={styles.ridesGrid}>
-      {acceptedRides.map((ride) => (
-        <TouchableOpacity
+    <ScrollView 
+      horizontal 
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.ridesScrollView}
+    >
+      {acceptedRides.map((ride, index) => (
+        <View
           key={ride.id}
           style={styles.rideCard}
-          onPress={() => onRidePress(ride)}
         >
-          <Text style={styles.rideDestination}>{ride.pickupLocation.address} - {ride.dropoffLocation.address}</Text>
-          <View style={styles.rideDetails}>
-            <Text style={styles.rideTime}>{ride.estimatedTime} min</Text>
-            <Text style={styles.ridePrice}>{ride.price?.toLocaleString()} FCFA</Text>
+          <View style={styles.rideCardHeader}>
+            <MapPin color="#2c3e50" size={20} />
+            <Text style={styles.rideDestination} numberOfLines={2}>
+              {ride.pickupLocation.address} - {ride.dropoffLocation.address}
+            </Text>
           </View>
-          <View style={[styles.rideStatus, { backgroundColor: ride.status === 'enCours' ? '#ffd700' : '#4CAF50' }]}>
+          <View style={styles.rideDetails}>
+            <View style={styles.rideDetailItem}>
+              <Clock color="#7f8c8d" size={16} />
+              <Text style={styles.rideTime}>{ride.estimatedTime} min</Text>
+            </View>
+            <View style={styles.rideDetailItem}>
+              <DollarSign color="#2c3e50" size={16} />
+              <Text style={styles.ridePrice}>{ride.price?.toLocaleString()} FCFA</Text>
+            </View>
+          </View>
+          <View 
+            style={[
+              styles.rideStatus, 
+              { 
+                backgroundColor: ride.status === 'enCours' 
+                  ? 'rgba(255, 215, 0, 0.2)' 
+                  : 'rgba(76, 175, 80, 0.2)' 
+              }
+            ]}
+          >
             <Text style={styles.rideStatusText}>
               {ride.status === 'enCours' ? 'En cours' : 'Terminé'}
             </Text>
           </View>
-        </TouchableOpacity>
+        </View>
       ))}
-    </View>
+    </ScrollView>
   </View>
 );
 
@@ -65,19 +135,43 @@ const DriverHomeScreen = ({ navigation }) => {
   const [dailyStats, setDailyStats] = useState({ totalEarnings: 0, completedRides: 0 });
   const [acceptedRides, setAcceptedRides] = useState([]);
   const _map = useRef(null);
-
   useEffect(() => {
     const initializeApp = async () => {
-      await Promise.all([
-        getLocation(),
-        registerForPushNotificationsAsync(),
-        fetchDriverName(),
-        fetchDriverOrders()
-      ]);
+        try {
+            await Promise.all([
+                getLocation(),
+                fetchDriverName(),
+                fetchDriverOrders()
+            ]);
+
+            // Initialize socket connection
+            socketService.connect();
+            
+            // Add delay before connecting as driver
+            setTimeout(() => {
+                const driverId = auth.currentUser?.uid;
+                if (driverId) {
+                    socketService.connectAsDriver(driverId);
+                    console.log('Connected as driver:', driverId);
+                }
+            }, 1000);
+
+            // Listen for new orders
+            socketService.onNewOrder((orderDetails) => {
+                console.log('New order received in driver screen:', orderDetails);
+                navigation.navigate('AcceptOrderScreen', { orderDetails });
+            });
+        } catch (error) {
+            console.error('Error initializing app:', error);
+        }
     };
 
     initializeApp();
-  }, []);
+
+    return () => {
+        socketService.disconnect();
+    };
+}, []);
 
   const getLocation = async () => {
     try {
@@ -105,23 +199,7 @@ const DriverHomeScreen = ({ navigation }) => {
     }
   };
 
-  const registerForPushNotificationsAsync = async () => {
-    try {
-      const { status } = await Notifications.requestPermissionsAsync();
-      if (status !== 'granted') return;
-
-      const token = (await Notifications.getExpoPushTokenAsync({
-        projectId: '57e70b0c-f485-44cc-bfb9-b6868dcbde3f'
-      })).data;
-
-      const userId = auth.currentUser.uid;
-      const driverRef = doc(db, 'drivers', userId);
-      await updateDoc(driverRef, { token });
-    } catch (error) {
-      console.error('Error registering for notifications:', error);
-    }
-  };
-
+ 
   const fetchDriverOrders = async () => {
     try {
       const userId = auth.currentUser.uid;
@@ -185,12 +263,16 @@ const DriverHomeScreen = ({ navigation }) => {
     return () => subscription.remove();
   }, []);
 
+ 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="light" backgroundColor="#1a73e8" translucent={true} />
 
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Bienvenue, {driverName}</Text>
+        <View style={styles.headerContent}>
+          <User color="white" size={28} />
+          <Text style={styles.headerTitle}>Bienvenue, {driverName}</Text>
+        </View>
       </View>
 
       <ScrollView
@@ -203,27 +285,12 @@ const DriverHomeScreen = ({ navigation }) => {
           completedRides={dailyStats.completedRides}
         />
 
-        <View style={styles.mapContainer}>
-          <MapView
-            ref={_map}
-            provider={PROVIDER_GOOGLE}
-            style={styles.map}
-            showsUserLocation
-            followsUserLocation
-            initialRegion={{
-              latitude: latlng.latitude || 37.78825,
-              longitude: latlng.longitude || -122.4324,
-              latitudeDelta: 0.008,
-              longitudeDelta: 0.008,
-            }}
-          />
-        </View>
-
         <View style={styles.actionButtons}>
           <TouchableOpacity
             style={[styles.actionButton, styles.primaryButton]}
             onPress={() => navigation.navigate("DriverOrdersScreen", { orders })}
           >
+            <Navigation color="white" size={20} />
             <Text style={styles.buttonText}>Voir mes courses</Text>
           </TouchableOpacity>
 
@@ -231,11 +298,15 @@ const DriverHomeScreen = ({ navigation }) => {
             style={[styles.actionButton, styles.secondaryButton]}
             onPress={() => navigation.navigate("ProfileScreen")}
           >
+            <User color="white" size={20} />
             <Text style={styles.buttonText}>Mon Profil</Text>
           </TouchableOpacity>
         </View>
 
-        <AcceptedRidesSection acceptedRides={acceptedRides} />
+        <AcceptedRidesSection 
+          acceptedRides={acceptedRides} 
+          onRidePress={(ride) => {/* navigation logic */}} 
+        />
       </ScrollView>
     </SafeAreaView>
   );
@@ -248,8 +319,83 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#1a73e8',
-    padding: 20,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
     paddingTop: 40,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  container: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  headerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  headerTextContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  headerText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  totalEarningsText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1a73e8',
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  statCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f9f9f9',
+    borderRadius: 12,
+    padding: 12,
+    width: '48%',
+  },
+  statIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  statTextContainer: {
+    flex: 1,
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#666',
   },
   headerTitle: {
     color: '#ffffff',
@@ -258,6 +404,17 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  earningsCard: {
+    backgroundColor: '#1a73e8', // Replaced LinearGradient with solid color
+    borderRadius: 16,
+    marginBottom: 20,
+    elevation: 6,
+    shadowColor: '#1a73e8',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    padding: 20, // Added padding here
   },
   scrollViewContent: {
     padding: 16,
@@ -270,18 +427,26 @@ const styles = StyleSheet.create({
     color: '#2c3e50',
   },
   earningsCard: {
-    backgroundColor: '#1a73e8',
     borderRadius: 16,
-    padding: 20,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    overflow: 'hidden',
     marginBottom: 20,
+    elevation: 6,
+    shadowColor: '#1a73e8',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+  },
+  earningsCardGradient: {
+    padding: 20,
   },
   earningsHeader: {
     marginBottom: 15,
+  },
+  earningsHeaderContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
   },
   earningsTitle: {
     fontSize: 16,
@@ -305,6 +470,7 @@ const styles = StyleSheet.create({
   },
   statItem: {
     alignItems: 'center',
+    gap: 6,
   },
   statValue: {
     fontSize: 24,
@@ -316,15 +482,6 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     opacity: 0.9,
   },
-  mapContainer: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    height: 200,
-    marginBottom: 20,
-  },
-  map: {
-    flex: 1,
-  },
   actionButtons: {
     flexDirection: 'row',
     gap: 12,
@@ -334,8 +491,11 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 12,
     padding: 16,
+    flexDirection: 'row',
     alignItems: 'center',
-    elevation: 2,
+    justifyContent: 'center',
+    gap: 10,
+    elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -355,32 +515,42 @@ const styles = StyleSheet.create({
   acceptedRidesContainer: {
     marginBottom: 20,
   },
-  ridesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  ridesScrollView: {
     gap: 12,
   },
   rideCard: {
     backgroundColor: '#ffffff',
     borderRadius: 12,
     padding: 16,
+    width: SCREEN_WIDTH - 44,
     elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    width: SCREEN_WIDTH -44 ,
+    marginRight: 12,
+  },
+  rideCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
   },
   rideDestination: {
     fontSize: 16,
     fontWeight: '500',
     color: '#2c3e50',
-    marginBottom: 8,
+    flex: 1,
   },
   rideDetails: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 8,
+  },
+  rideDetailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   rideTime: {
     fontSize: 14,

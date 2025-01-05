@@ -5,13 +5,12 @@
   },
   "build": {
     "development": {
-      "developmentClient": true,
-      "distribution": "internal",
-      "android": {
-        "gradleCommand": ":app:assembleDebug",
-        "buildType": "apk"
-      }
-    },
+  "developmentClient": true,
+  "distribution": "internal",
+  "env": {
+    "ANDROID_PACKAGE": "com.ProjetDriver"
+  }
+},
     "preview": {
       "distribution": "internal",
       "android": {

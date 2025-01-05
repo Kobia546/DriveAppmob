@@ -29,6 +29,7 @@ export const colors = {
     lightgreen: '#66DF48',
     blue:'#286ef0',
     black: "#000000",
+    now:"#1b5988",
     white: "#ffffff",
     darkBlue:"#2d328a",
     pagebackground:"white"

@@ -21,6 +21,7 @@ import { mapStyle } from '../global/mapStyle';
 import { colors } from "../global/style";
 import { auth, db } from '../../firebaseConfig'; // Assurez-vous que vous avez importé auth et db
 import { doc, getDoc } from 'firebase/firestore';
+import RecentDestinations from "../../recentDestinations";
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -79,7 +80,7 @@ const HomeScreen = ({ navigation }) => {
           const userDoc = await getDoc(userDocRef);
           if (userDoc.exists()) {
             const userData = userDoc.data();
-            setUserName(userData.username); // Assurez-vous que le nom de l'utilisateur est stocké sous 'name'
+            setUserName(userData.username); 
           }
         }
       } catch (error) {
@@ -160,8 +161,8 @@ const HomeScreen = ({ navigation }) => {
   );
 
   const filterData = [
-    { name: "Parking", image: require('../../assets/Wavy_Bus-42_Single-05.jpg'), id: "0", screen: "Parking" },
     { name: "Services", image: require("../../assets/food.png"), id: "1", screen: "RequestScreen" },
+    { name: "Parking", image: require('../../assets/Wavy_Bus-42_Single-05.jpg'), id: "0", screen: "Parking" },
     { name: "Conciergeries", image: require("../../assets/reserve.png"), id: "2", screen: "Conciergerie" }
   ];
   const [carsAround, setCarsAround] = useState([
@@ -173,7 +174,7 @@ const HomeScreen = ({ navigation }) => {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={colors.blue} />
+        <ActivityIndicator size="large" color={colors.now} />
       </View>
     );
   }
@@ -194,14 +195,15 @@ const HomeScreen = ({ navigation }) => {
           <View style={styles.heroSection}>
             <View style={styles.heroContent}>
               <Text style={styles.heroText}>
-                Ils seront toujours présents pour vous aider
+                Votre Temps est precieux;
+                Reservez votre chauffeur privé pour s'occuper de vos courses
               </Text>
               {/* {renderSearchButton()} */}
             </View>
-            <Image
-              source={require('../../assets/uberCar.png')}
+            {/* <Image
+              source={require('../../assets/driver.png')}
               style={styles.heroImage}
-            />
+            /> */}
           </View>
 
           <View style={styles.servicesSection}>
@@ -242,7 +244,8 @@ const HomeScreen = ({ navigation }) => {
               subtitle: "Bel-Air"
             })}
           </View> */}
-
+          
+          <RecentDestinations/> 
           <View style={styles.mapSection}>
             <Text style={styles.sectionTitle}>Vous êtes ici </Text>
             <View style={styles.mapContainer}>
@@ -278,7 +281,7 @@ const HomeScreen = ({ navigation }) => {
           </View>
         </View>
       </Animated.ScrollView>
-      <StatusBar style="light" backgroundColor={colors.blue} translucent />
+      <StatusBar style="light" backgroundColor={colors.now} translucent />
     </View>
   );
 };
@@ -299,7 +302,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    backgroundColor: colors.blue,
+    backgroundColor: colors.now,
     zIndex: 100,
   },
   headerContent: {
@@ -312,6 +315,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 20,
+   
   },
   headerTitle: {
     fontSize: 24,
@@ -323,11 +327,13 @@ const styles = StyleSheet.create({
     paddingTop: 140,
   },
   heroSection: {
-    backgroundColor: colors.blue,
+    backgroundColor: colors.now,
     paddingHorizontal: 20,
     paddingBottom: 30,
     flexDirection: 'row',
     alignItems: 'center',
+    borderBottomRightRadius:300,
+    
   },
   heroContent: {
     flex: 1,
@@ -342,7 +348,8 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     top: 30,
-    left: 25,
+    left: 50,
+  
   },
   searchButton: {
     backgroundColor: colors.black,
@@ -378,11 +385,14 @@ const styles = StyleSheet.create({
     color: colors.black,
   },
   servicesList: {
-    paddingHorizontal: 15,
+    paddingHorizontal: 40,
+  
+   
   },
   serviceCard: {
     alignItems: 'center',
     marginHorizontal: 10,
+   
   },
   serviceImageContainer: {
     width: 70,

@@ -3,17 +3,37 @@
     "name": "ProjetDriver",
     "slug": "ProjetDriver",
     "version": "1.0.0",
-    
     "notification": {
       "icon": "./assets/Logo.png",
       "color": "#ffffff"
     },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/Logo.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "package": "com.ProjetDriver",
+      "googleServicesFile": "./google-services.json",
+      "jsEngine": "hermes",
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.INTERNET",
+        "android.permission.VIBRATE",
+        "android.permission.POST_NOTIFICATIONS"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyBQivdVNxU7quHhW_ARw2VuXKmHVwXhNMk"
+        }
+      }
+    },
+    
     "splash": {
       "image": "./assets/Logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    
     "updates": {
       "fallbackToCacheTimeout": 0
     },
@@ -22,29 +42,9 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.projetdriver",
+      "bundleIdentifier": "com.ProjetDriver",
       "config": {
         "googleMapsApiKey": "AIzaSyBQivdVNxU7quHhW_ARw2VuXKmHVwXhNMk"
-      }
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/Logo.png",
-        "backgroundColor": "#FFFFFF",
-        "googleServicesFile": "./google-services.json"
-      },
-      "package": "com.ProjetDriver",
-      "jsEngine": "hermes",
-      "permissions": [
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION",
-        "FOREGROUND_SERVICE",
-        "NOTIFICATIONS"
-      ],
-      "config": {
-        "googleMaps": {
-          "apiKey": "AIzaSyBQivdVNxU7quHhW_ARw2VuXKmHVwXhNMk"
-        }
       }
     },
     "web": {
@@ -52,8 +52,9 @@
     },
     "extra": {
       "eas": {
-        "projectId": "57e70b0c-f485-44cc-bfb9-b6868dcbde3f"
-      }
+        "oneSignalAppId": "4402b180-5f88-4c75-b35f-1c832d4c73d7"
+      },
+      "oneSignalAppId": "4402b180-5f88-4c75-b35f-1c832d4c73d7"
     }
   }
 }

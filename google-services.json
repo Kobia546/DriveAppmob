@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "261115216605",
+    "project_id": "projet-d11a4",
+    "storage_bucket": "projet-d11a4.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:261115216605:android:95c61822d4f849b5c7d134",
+        "android_client_info": {
+          "package_name": "com.projetdriver"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCOT8ZAmwThtnE1pYrkIUZNk1xj2wUym6Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

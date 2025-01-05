@@ -1,53 +1,85 @@
-// server.js
 const express = require('express');
-const bodyParser = require('body-parser');
-const multer = require('multer');
-const mysql = require('mysql2');
-const path = require('path')
-const db = require('./db'); 
+const { createServer } = require('http');
+const { Server } = require('socket.io');
+const cors = require('cors');
+
 
 const app = express();
-app.use(bodyParser.json()); 
+app.use(cors());
 
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  },
+  pingTimeout: 60000,
+  pingInterval: 25000
+});
 
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-      cb(null, './uploads'); 
-    },
-    filename: (req, file, cb) => {
-      cb(null, `${Date.now()}-${file.originalname}`);
-    },
+// Thread-safe map pour les chauffeurs
+const connectedDrivers = new Map();
+
+io.on('connection', (socket) => {
+  console.log('Nouvelle connexion:', socket.id);
+
+  socket.on('driver:connect', (driverId) => {
+    if (!driverId) return;
+    connectedDrivers.set(driverId, socket.id);
+    socket.emit('driver:connected', { status: 'success' });
+    console.log(`Chauffeur ${driverId} connecté`);
   });
-  const upload = multer({ storage });
-  app.post('/api/drivers/register', upload.fields([{ name: 'licenseImage' }, { name: 'idCardImage' }]), (req, res) => {
-    const { name, email, phoneNumber } = req.body;
-    const licenseImage = req.files['licenseImage'][0].path; 
-    const idCardImage = req.files['idCardImage'][0].path; 
-  
-    const sql = 'INSERT INTO drivers (name, email, phoneNumber, licenseImage, idCardImage) VALUES (?, ?, ?, ?, ?)';
-    db.query(sql, [name, email, phoneNumber, licenseImage, idCardImage], (error, results) => {
-      if (error) {
-        return res.status(500).json({ message: 'Erreur lors de l\'inscription', error });
-      }
-      res.status(201).json({ message: 'Chauffeur inscrit avec succès' });
-    });
-  });
-app.post('/register', (req, res) => {
-  const { email, password, user, carPhoto } = req.body;
 
-
-  const sql = 'INSERT INTO users (email, password, username, carPhoto) VALUES (?, ?, ?, ?)';
-  db.query(sql, [email, password, user, carPhoto], (err, result) => {
-    if (err) {
-      console.error('Erreur d\'insertion : ', err);
-      return res.status(500).json({ error: 'Erreur lors de l\'inscription' });
+  socket.on('new:order', (orderData) => {
+    if (!orderData || !orderData.orderId) return;
+    
+    try {
+      connectedDrivers.forEach((socketId) => {
+        io.to(socketId).emit('order:available', orderData);
+      });
+    } catch (error) {
+      console.error('Erreur envoi commande:', error);
     }
-    res.json({ message: 'Inscription réussie' });
+  });
+
+  socket.on('order:accept', ({ orderId, driverId, clientId }) => {
+    if (!orderId || !driverId || !clientId) return;
+    
+    try {
+      io.emit(`order:accepted:${clientId}`, {
+        orderId,
+        driverId,
+        timestamp: Date.now()
+      });
+    } catch (error) {
+      console.error('Erreur acceptation commande:', error);
+    }
+  });
+
+  socket.on('disconnect', (reason) => {
+    console.log(`Déconnexion (${reason}):`, socket.id);
+    for (const [driverId, socketId] of connectedDrivers.entries()) {
+      if (socketId === socket.id) {
+        connectedDrivers.delete(driverId);
+        console.log(`Chauffeur ${driverId} déconnecté`);
+        break;
+      }
+    }
+  });
+
+  socket.on('error', (error) => {
+    console.error('Erreur socket:', error);
   });
 });
 
-// Lancer le serveur
-const PORT = 3000;
-app.listen(PORT, () => {
-  console.log(`Serveur lancé sur le port ${PORT}`);
+// Route de santé
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', connections: connectedDrivers.size });
+});
+
+const PORT = process.env.PORT || 3000;
+httpServer.listen(PORT, () => {
+  console.log(`Serveur WebSocket démarré sur le port ${PORT}`);
+}).on('error', (error) => {
+  console.error('Erreur serveur:', error);
 });
