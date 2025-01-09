@@ -8,7 +8,7 @@
   "developmentClient": true,
   "distribution": "internal",
   "env": {
-    "ANDROID_PACKAGE": "com.ProjetDriver"
+    "ANDROID_PACKAGE": "com.projetDriver"
   }
 },
     "preview": {

@@ -3,7 +3,7 @@ import { io } from 'socket.io-client';
 class SocketService {
   constructor() {
     this.socket = null;
-    this.serverUrl = 'http://192.168.106.71:3000';
+    this.serverUrl = 'http://192.168.137.1:3000';  // Remplacez par votre URL Heroku
     this.isConnected = false;
   }
 
@@ -36,7 +36,7 @@ class SocketService {
         console.log('Disconnected from WebSocket server:', reason);
         this.isConnected = false;
       });
-
+      
       this.socket.on('error', (error) => {
         console.error('WebSocket error:', error);
       });
@@ -55,7 +55,8 @@ class SocketService {
       console.log('Sending new order:', orderData);
       this.socket.emit('new:order', orderData);
 
-      // Add confirmation listener
+      resolve({ status: 'success', orderId: orderData.id });
+
       this.socket.once('order:sent:confirmation', (confirmation) => {
         console.log('Order sent confirmation:', confirmation);
       });
@@ -74,7 +75,6 @@ class SocketService {
       console.log('Connecting as driver:', driverId);
       this.socket.emit('driver:connect', driverId);
 
-      // Add confirmation listener
       this.socket.once('driver:connect:confirmation', (confirmation) => {
         console.log('Driver connected confirmation:', confirmation);
       });
@@ -109,7 +109,6 @@ class SocketService {
       console.log('Accepting order:', { orderId, driverId, clientId, driverInfo });
       this.socket.emit('order:accept', { orderId, driverId, clientId, driverInfo });
 
-      // Add confirmation listener
       this.socket.once('order:accept:confirmation', (confirmation) => {
         console.log('Order accept confirmation:', confirmation);
       });

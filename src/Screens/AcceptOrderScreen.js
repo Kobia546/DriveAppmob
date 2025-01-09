@@ -95,10 +95,10 @@ const AcceptOrderScreen = ({ route, navigation }) => {
 
             socketService.socket.emit('order:accept', acceptanceData);
             console.log('Order acceptance emitted via socket:', acceptanceData);
+            navigation.navigate("MapScreen", { orderDetails: { ...orderDetails, driverInfo: acceptanceData.driverInfo } });
 
             socketService.socket.once('order:accept:confirmed', (response) => {
                 console.log('Server confirmed order acceptance:', response);
-                navigation.navigate("MapScreen", { orderDetails: { ...orderDetails, driverInfo: acceptanceData.driverInfo } });
             });
 
         } catch (error) {
