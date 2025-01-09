@@ -3,7 +3,7 @@ import { io } from 'socket.io-client';
 class SocketService {
   constructor() {
     this.socket = null;
-    this.serverUrl = 'http://192.168.137.1:3000';  // Remplacez par votre URL Heroku
+    this.serverUrl = 'https://driverappmobile.onrender.com';  // Remplacez par votre URL Heroku
     this.isConnected = false;
   }
 
@@ -55,7 +55,7 @@ class SocketService {
       console.log('Sending new order:', orderData);
       this.socket.emit('new:order', orderData);
 
-      resolve({ status: 'success', orderId: orderData.id });
+      
 
       this.socket.once('order:sent:confirmation', (confirmation) => {
         console.log('Order sent confirmation:', confirmation);
