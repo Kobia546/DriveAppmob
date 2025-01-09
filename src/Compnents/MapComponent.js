@@ -144,45 +144,55 @@ export default class MapComponent extends Component {
     handleContinue = async () => {
         const { userOrigin, userDestination } = this.props;
         const { distance, isRoundTrip } = this.state;
-        const userId = auth.currentUser ? auth.currentUser.uid : null;
-    
+        const userId = auth.currentUser?.uid;
+      
         if (!userId) {
-            alert("Vous devez être connecté pour passer une commande.");
-            return;
+          alert("Vous devez être connecté pour passer une commande.");
+          return;
         }
+      
         this.setState({ isSearchingDrivers: true });
-    
-        const orderData = {
-            userId: userId,
+      
+        try {
+          // Créer l'objet orderData
+          const orderData = {
+            userId,
             distance,
             isRoundTrip,
-            pickupLocation: userOrigin,
+            pickupLocation: {
+              ...userOrigin,
+              address: userOrigin.address || await fetchLocationName(userOrigin.latitude, userOrigin.longitude)
+            },
             dropoffLocation: userDestination,
             price: this.calculatePrice(distance),
             status: 'pending',
-        };
-    
-        try {
-            // Enregistrer dans Firestore
-            const orderRef = await addDoc(collection(db, 'orders'), orderData);
-            console.log(orderData)
-            const orderDataWithId = { ...orderData, id: orderRef.id };
-    
-            // Envoyer via WebSocket
-            socketService.connect();
-        
-        // Add a small delay to ensure connection is established
-        setTimeout(() => {
-            socketService.sendNewOrder(orderDataWithId);
-            console.log('Order sent via socket:', orderDataWithId);
-        }, 500);
-            
-            // alert(`Commande enregistrée. Prix: ${this.calculatePrice(distance).toFixed(2)} CFA`);
+            createdAt: new Date(),
+            estimatedTime: this.state.travelTime
+          };
+      
+          // Ajouter à Firestore
+          const orderRef = await addDoc(collection(db, 'orders'), orderData);
+          const orderDataWithId = { ...orderData, id: orderRef.id };
+      
+          // Vérifier la connexion socket
+          if (!socketService.isConnected) {
+            await socketService.connect();
+          }
+      
+          // Envoyer la commande via socket
+          await socketService.sendNewOrder(orderDataWithId);
+          console.log('Commande envoyée avec succès');
+          
+          // Ici vous pouvez naviguer vers un écran de suivi
+          
+      
         } catch (error) {
-            console.error("Erreur lors de l'enregistrement de la commande:", error);
-            alert("Une erreur s'est produite lors de l'enregistrement de la commande.");
+          console.error("Erreur lors de l'envoi de la commande:", error);
+          alert("Une erreur s'est produite lors de l'envoi de la commande.");
+        } finally {
+          this.setState({ isSearchingDrivers: false });
         }
-    };
+      };
     getAllDriverTokens = async () => {
         const tokens = [];
         try {

@@ -109,9 +109,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.ProjetDriver'
+    namespace 'com.projetDriver'
     defaultConfig {
-        applicationId 'com.ProjetDriver'
+        applicationId 'com.projetDriver'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

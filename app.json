@@ -12,7 +12,7 @@
         "foregroundImage": "./assets/Logo.png",
         "backgroundColor": "#FFFFFF"
       },
-      "package": "com.ProjetDriver",
+      "package": "com.projetDriver",
       "googleServicesFile": "./google-services.json",
       "jsEngine": "hermes",
       "permissions": [
@@ -28,7 +28,6 @@
         }
       }
     },
-    
     "splash": {
       "image": "./assets/Logo.png",
       "resizeMode": "contain",
@@ -42,7 +41,7 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.ProjetDriver",
+      "bundleIdentifier": "com.projetDriver",
       "config": {
         "googleMapsApiKey": "AIzaSyBQivdVNxU7quHhW_ARw2VuXKmHVwXhNMk"
       }
@@ -52,7 +51,8 @@
     },
     "extra": {
       "eas": {
-        "oneSignalAppId": "4402b180-5f88-4c75-b35f-1c832d4c73d7"
+        "oneSignalAppId": "4402b180-5f88-4c75-b35f-1c832d4c73d7",
+        "projectId": "57e70b0c-f485-44cc-bfb9-b6868dcbde3f"
       },
       "oneSignalAppId": "4402b180-5f88-4c75-b35f-1c832d4c73d7"
     }
