@@ -159,10 +159,7 @@ export default class MapComponent extends Component {
             userId,
             distance,
             isRoundTrip,
-            pickupLocation: {
-              ...userOrigin,
-              address: userOrigin.address || await fetchLocationName(userOrigin.latitude, userOrigin.longitude)
-            },
+            pickupLocation:userOrigin,
             dropoffLocation: userDestination,
             price: this.calculatePrice(distance),
             status: 'pending',

@@ -137,41 +137,45 @@ const DriverHomeScreen = ({ navigation }) => {
   const _map = useRef(null);
   useEffect(() => {
     const initializeApp = async () => {
-        try {
-            await Promise.all([
-                getLocation(),
-                fetchDriverName(),
-                fetchDriverOrders()
-            ]);
-
-            // Initialize socket connection
-            socketService.connect();
-            
-            // Add delay before connecting as driver
-            setTimeout(() => {
-                const driverId = auth.currentUser?.uid;
-                if (driverId) {
-                    socketService.connectAsDriver(driverId);
-                    console.log('Connected as driver:', driverId);
-                }
-            }, 1000);
-
-            // Listen for new orders
-            socketService.onNewOrder((orderDetails) => {
-                console.log('New order received in driver screen:', orderDetails);
-                navigation.navigate('AcceptOrderScreen', { orderDetails });
-            });
-        } catch (error) {
-            console.error('Error initializing app:', error);
-        }
+      try {
+        await Promise.all([
+          getLocation(),
+          fetchDriverName(),
+          fetchDriverOrders()
+        ]);
+  
+        // Initialize socket connection
+        socketService.connect();
+  
+        // Add delay before connecting as driver
+        setTimeout(() => {
+          const driverId = auth.currentUser?.uid;
+          if (driverId) {
+            if (socketService.isConnected) {
+              socketService.connectAsDriver(driverId);
+              console.log('Connected as driver:', driverId);
+            } else {
+              console.error('Cannot connect as driver: Socket not connected');
+            }
+          }
+        }, 1000);
+  
+        // Listen for new orders
+        socketService.onNewOrder((orderDetails) => {
+          console.log('New order received in driver screen:', orderDetails);
+          navigation.navigate('AcceptOrderScreen', { orderDetails });
+        });
+      } catch (error) {
+        console.error('Error initializing app:', error);
+      }
     };
-
+  
     initializeApp();
-
+  
     return () => {
-        socketService.disconnect();
+      socketService.disconnect();
     };
-}, []);
+  }, []);
 
   const getLocation = async () => {
     try {

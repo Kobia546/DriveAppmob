@@ -73,7 +73,7 @@ const AcceptOrderScreen = ({ route, navigation }) => {
 
             if (!socketService.socket?.connected) {
                 await socketService.connect();
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await new Promise(resolve => setTimeout(resolve, 1000));
             }
 
             const acceptanceData = {
