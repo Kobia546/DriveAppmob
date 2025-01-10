@@ -28,8 +28,10 @@ io.on('connection', (socket) => {
 
   // Réception d'une nouvelle commande
   socket.on('new:order', (orderData) => {
+    console.log('Nouvelle commande reçue:', orderData);
     // Envoyer la commande à tous les chauffeurs connectés
     connectedDrivers.forEach((socketId) => {
+      console.log('Envoi de la commande à chauffeur:', socketId);
       io.to(socketId).emit('order:available', orderData);
     });
   });

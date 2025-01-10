@@ -3,7 +3,7 @@ import { io } from 'socket.io-client';
 class SocketService {
   constructor() {
     this.socket = null;
-    this.serverUrl = 'https://driverappmobile.onrender.com';  // Remplacez par votre URL Heroku
+    this.serverUrl = 'https://driverappmobile.onrender.com';  
     this.isConnected = false;
   }
 
@@ -50,13 +50,11 @@ class SocketService {
       console.error('Cannot send order: Socket not connected');
       return;
     }
-
+  
     try {
       console.log('Sending new order:', orderData);
       this.socket.emit('new:order', orderData);
-
-      
-
+  
       this.socket.once('order:sent:confirmation', (confirmation) => {
         console.log('Order sent confirmation:', confirmation);
       });
@@ -64,17 +62,18 @@ class SocketService {
       console.error('Error sending new order:', error);
     }
   }
+  
 
   connectAsDriver(driverId) {
     if (!this.socket || !this.isConnected) {
       console.error('Cannot connect as driver: Socket not connected');
       return;
     }
-
+  
     try {
       console.log('Connecting as driver:', driverId);
       this.socket.emit('driver:connect', driverId);
-
+  
       this.socket.once('driver:connect:confirmation', (confirmation) => {
         console.log('Driver connected confirmation:', confirmation);
       });
