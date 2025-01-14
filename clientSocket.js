@@ -3,7 +3,7 @@ import { io } from 'socket.io-client';
 class SocketService {
   constructor() {
     this.socket = null;
-    this.serverUrl = 'http://192.168.137.1:3000';  
+    this.serverUrl = 'http://driverappmobile.onrender.com';  
     this.isConnected = false;
   }
 
@@ -81,7 +81,6 @@ class SocketService {
       console.error('Error connecting as driver:', error);
     }
   }
-  
 
   onNewOrder(callback) {
     if (!this.socket) {
