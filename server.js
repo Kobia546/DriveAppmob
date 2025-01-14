@@ -15,7 +15,7 @@ app.use((req, res, next) => {
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: "wss://driverappmobile.onrender.com",
+    origin: "*",
     methods: ["GET", "POST"],
     credentials: true,
     allowedHeaders: ["*"]
