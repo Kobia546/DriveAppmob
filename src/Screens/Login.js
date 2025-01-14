@@ -5,9 +5,14 @@ import Toast from 'react-native-toast-message';
 import { useNavigation } from '@react-navigation/native';
 import { auth } from '../../firebaseConfig';
 import { db } from '../../firebaseConfig';
+import { Platform  } from 'react-native';
 import { signInWithEmailAndPassword, PhoneAuthProvider, signInWithCredential } from 'firebase/auth';
 import { doc, getDoc,collection,query,where,getDocs } from 'firebase/firestore';
+import { normalize } from 'react-native-elements';
 import HomeScreen from './HomeScreen';
+import { ScreenHeight } from 'react-native-elements/dist/helpers';
+import { ScreenWidth } from 'react-native-elements/dist/helpers';
+
 
 const VONAGE_API_KEY = 'c2f40403';
 const VONAGE_API_SECRET = 'X5JTqlKo0cpbIWnX';
@@ -164,47 +169,57 @@ const Login = () => {
     }
   };
 
+ 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: 'white', alignItems: 'center' }}>
-      <View>
-        <Image style={{ width: 100, height: 100, top: 45, }} source={require('../../assets/Logo.png')} />
+    <SafeAreaView style={styles.container}>
+      <View style={styles.logoContainer}>
+        <Image 
+          style={styles.logo} 
+          source={require('../../assets/Logo.png')}
+          resizeMode="contain"
+        />
       </View>
-      <KeyboardAvoidingView>
-        <View style={{ alignItems: 'center' }}>
-          <Text style={{ fontSize: 17, fontWeight: 'bold', top: 80 }}>Connectez-vous</Text>
-        </View>
+
+      <KeyboardAvoidingView style={styles.mainContent} >
+        <Text style={styles.title}>Connectez-vous</Text>
+
         <View style={styles.authMethodContainer}>
           <Pressable
             onPress={() => setAuthMethod('email')}
             style={[styles.authMethodButton, authMethod === 'email' && styles.selected]}
           >
-            <Text style={ styles.authMethodText,
-        authMethod === 'email' && styles.authMethodSelectedText}>Email</Text>
+            <Text style={[
+              styles.authMethodText,
+              authMethod === 'email' && styles.authMethodSelectedText
+            ]}>Email</Text>
           </Pressable>
           <Pressable
             onPress={() => setAuthMethod('phone')}
             style={[styles.authMethodButton, authMethod === 'phone' && styles.selected]}
           >
-            <Text style={ styles.authMethodText,
-        authMethod === 'phone' && styles.authMethodSelectedText}>Téléphone</Text>
+            <Text style={[
+              styles.authMethodText,
+              authMethod === 'phone' && styles.authMethodSelectedText
+            ]}>Téléphone</Text>
           </Pressable>
         </View>
+
         {authMethod === 'email' ? (
-          <>
+          <View style={styles.formContainer}>
             <View style={styles.inputContainer}>
-              <MaterialIcons name="email" size={24} color="gray" marginLeft={10} />
+              <MaterialIcons name="email" size={normalize(24)} color="gray" style={styles.inputIcon} />
               <TextInput
                 value={email}
-                onChangeText={(text) => setEmail(text)}
+                onChangeText={setEmail}
                 placeholder='Entrez votre email'
                 style={styles.inputField}
               />
             </View>
             <View style={styles.inputContainer}>
-              <AntDesign name="lock" size={24} color="gray" marginLeft={10} />
+              <AntDesign name="lock" size={normalize(24)} color="gray" style={styles.inputIcon} />
               <TextInput
                 value={password}
-                onChangeText={(text) => setPassword(text)}
+                onChangeText={setPassword}
                 secureTextEntry={true}
                 placeholder='Entrez votre mot de passe'
                 style={styles.inputField}
@@ -214,17 +229,17 @@ const Login = () => {
               {loading ? (
                 <ActivityIndicator color="white" />
               ) : (
-                <Text style={{ textAlign: 'center', color: 'white', fontWeight: 'bold' }}>Se Connecter</Text>
+                <Text style={styles.buttonText}>Se Connecter</Text>
               )}
             </Pressable>
-          </>
+          </View>
         ) : (
-          <>
+          <View style={styles.formContainer}>
             <View style={styles.inputContainer}>
-              <MaterialIcons name="phone" size={24} color="gray" marginLeft={10} />
+              <MaterialIcons name="phone" size={normalize(24)} color="gray" style={styles.inputIcon} />
               <TextInput
                 value={phoneNumber}
-                onChangeText={(text) => setPhoneNumber(text)}
+                onChangeText={setPhoneNumber}
                 placeholder='Entrez votre numéro de téléphone'
                 keyboardType="phone-pad"
                 style={styles.inputField}
@@ -240,10 +255,10 @@ const Login = () => {
               </Pressable>
             ) : (
               <View style={styles.inputContainer}>
-                <MaterialIcons name="verified-user" size={24} color="gray" marginLeft={10} />
+                <MaterialIcons name="verified-user" size={normalize(24)} color="gray" style={styles.inputIcon} />
                 <TextInput
                   value={verificationCode}
-                  onChangeText={(text) => setVerificationCode(text)}
+                  onChangeText={setVerificationCode}
                   placeholder='Entrez le code de vérification'
                   keyboardType="number-pad"
                   style={styles.inputField}
@@ -254,13 +269,16 @@ const Login = () => {
               {loading ? (
                 <ActivityIndicator color="white" />
               ) : (
-                <Text style={{ textAlign: 'center', color: 'white', fontWeight: 'bold' }}>Se Connecter</Text>
+                <Text style={styles.buttonText}>Se Connecter</Text>
               )}
             </Pressable>
-          </>
+          </View>
         )}
-        <Pressable onPress={() => navigation.navigate('Register')} style={{ marginTop: 10 }}>
-          <Text style={{ textAlign: 'center', fontSize: 15, color: 'gray' }}>Vous n'avez  pas de compte? Inscrivez-vous</Text>
+
+        <Pressable onPress={() => navigation.navigate('Register')} style={styles.registerLink}>
+          <Text style={styles.registerText}>
+            Vous n'avez pas de compte? Inscrivez-vous
+          </Text>
         </Pressable>
       </KeyboardAvoidingView>
       <Toast ref={(ref) => Toast.setRef(ref)} />
@@ -269,76 +287,103 @@ const Login = () => {
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: 'white',
+    width: '100%',
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginTop: normalize(20),
+    height: ScreenHeight * 0.15,
+  },
+  logo: {
+    width: ScreenWidth* 0.25,
+    height: ScreenHeight* 0.15,
+  },
+  mainContent: {
+    flex: 1,
+    width: '100%',
+    paddingHorizontal: ScreenWidth * 0.05,
+  },
+  title: {
+    fontSize: normalize(17),
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: normalize(25),
+  },
   authMethodContainer: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    marginVertical: 15,
-    width: '90%',
-  
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: normalize(20),
   },
   authMethodButton: {
     flex: 1,
-    padding: 12,
-    margin: 5,
-    marginVertical: 90,
-    position:'static',
-    borderRadius: 8,
+    padding: normalize(12),
+    margin: ScreenWidth * 0.01,
+    borderRadius: normalize(8),
     backgroundColor: '#F0F0F0',
     alignItems: 'center',
   },
-  authMethodText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
   selected: {
     backgroundColor: '#1b5988',
-    color:'white'
-    
-    
   },
-  selectedText: {
-    color: 'white',
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    gap: 10,
-    bottom: 90,
-    marginTop: 20,
-    paddingVertical: 'center',
-    alignItems: 'center',
-    backgroundColor: '#D0D0D0D0',
-    
-    borderRadius: 5,
-  },
-  inputField: {
-    padding: 10,
-    width: 300,
-    height: 50,
-    fontSize: 18,
-  },
-  verificationButton: {
-    backgroundColor: '#1b5988',
-    padding: 12,
-    borderRadius: 8,
-    marginVertical: 2,
-    bottom:85,
-    width: '90%',
-    alignItems: 'center',
+  authMethodText: {
+    fontSize: normalize(16),
+    fontWeight: '500',
   },
   authMethodSelectedText: {
     color: 'white',
   },
-  buttonText:{
-    color:'white'
+  formContainer: {
+    width: '100%',
+    alignItems: 'center',
+    gap: normalize(15),
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#D0D0D0D0',
+    borderRadius: normalize(5),
+    width: '100%',
+    height: normalize(50),
+  },
+  inputIcon: {
+    marginLeft: normalize(10),
+  },
+  inputField: {
+    flex: 1,
+    padding: normalize(10),
+    fontSize: normalize(16),
   },
   loginButton: {
-    marginTop: 140,
     backgroundColor: '#1b5988',
-    marginLeft: 'auto',
-    marginRight: 'auto',
-    borderRadius: 6,
-    width: 200,
-    padding: 15,
+    borderRadius: normalize(6),
+    width: '80%',
+    padding: normalize(15),
+    alignItems: 'center',
+    marginTop: normalize(20),
+  },
+  verificationButton: {
+    backgroundColor: '#1b5988',
+    borderRadius: normalize(8),
+    width: '100%',
+    padding: normalize(12),
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: normalize(16),
+    fontWeight: 'bold',
+  },
+  registerLink: {
+    marginTop: normalize(20),
+    alignItems: 'center',
+  },
+  registerText: {
+    fontSize: normalize(15),
+    color: 'gray',
   },
 });
 

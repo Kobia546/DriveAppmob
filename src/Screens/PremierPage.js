@@ -5,7 +5,8 @@ import Item from './Item';
 import { StatusBar } from 'expo-status-bar';
 import Pagination from './Pagination';
 
-const { width: WindowWidth } = Dimensions.get('window');
+const { width: WindowWidth, height: WindowHeight } = Dimensions.get('window');
+
 const Slide = [
   {
     id: 1,
@@ -18,16 +19,16 @@ const Slide = [
     image: require("../../assets/First.png")
   },
   {
-      id: 3,  
-      title: "Vous avez du travail, vous êtes en réunion? Votre temps est précieux, confiez-nous vos courses.",
-      image: require("../../assets/Busy.png"),
-    },
-    {
-        id: 4,
-        title: "N'ayez Crainte, tous nos chauffeurs sont des professionnels formés et sont certifiés.",
-        image: require("../../assets/verification.png"),
-        isLastSlide: true,
-    }, 
+    id: 3,
+    title: "Vous avez du travail, vous êtes en réunion? Votre temps est précieux, confiez-nous vos courses.",
+    image: require("../../assets/Busy.png"),
+  },
+  {
+    id: 4,
+    title: "N'ayez Crainte, tous nos chauffeurs sont des professionnels formés et sont certifiés.",
+    image: require("../../assets/verification.png"),
+    isLastSlide: true,
+  },
 ];
 
 export default function PremierPage() {
@@ -73,11 +74,10 @@ export default function PremierPage() {
 
   return (
     <SafeAreaView style={styles.container}>
-    <Image 
-         style={{width:100,height:100,top:50}}
+      <Image
+        style={styles.logo}
         source={require('../../assets/Logo.png')}
-       />
-
+      />
       <FlatList
         data={Slide}
         renderItem={renderItem}
@@ -88,7 +88,6 @@ export default function PremierPage() {
         onScroll={onScroll}
       />
       <Pagination index={index} data={Slide} />
-      {/* <StackNavigator /> */}
     </SafeAreaView>
   );
 }
@@ -98,11 +97,9 @@ const styles = StyleSheet.create({
     position: 'relative',
     flex: 1,
     backgroundColor: ' #00ff00',
-    bottom:25,
-    top:30,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: Platform.OS === 'android' ? StatusBar.height : 0,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
   slide: {
     width: WindowWidth,
@@ -110,33 +107,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   image: {
-    width: 200,
-    height: 200,
-    top:40,
-    left:10,
+    width: WindowWidth * 0.5,
+    height: WindowHeight * 0.3,
     resizeMode: 'contain',
   },
   title: {
-    fontSize: 23,
+    fontSize: WindowWidth * 0.05,
     fontWeight: 'bold',
     marginVertical: 10,
-    paddingLeft:20,
-    top:120,
-    
-    
+    paddingHorizontal: 20,
+    textAlign: 'center',
   },
   button: {
     backgroundColor: '#1b5988',
     padding: 20,
     borderRadius: 10,
-    marginLeft: 200,
-    marginTop: 200,
-   
+    marginTop: 20,
+    marginLeft:150
   },
   buttonText: {
     color: 'white',
-    fontSize: 18,
+    fontSize: WindowWidth * 0.04,
     fontWeight: 'bold',
     textAlign: 'center',
+  },
+  logo: {
+    width: WindowWidth * 0.2,
+    height: WindowWidth * 0.2,
+    marginTop: WindowHeight * 0.05,
   },
 });

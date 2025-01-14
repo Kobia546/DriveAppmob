@@ -457,7 +457,11 @@ const Register = () => {
                
             )}
           </Pressable>
-          <Text onPress={navigation.navigate("DriverRegister")} > Je suis chauffeur </Text>
+         <Pressable onPress={() => navigation.navigate('DriverRegister')} style={styles.registerLink}>
+                 <Text style={styles.registerText}>
+                   Je suis chauffeur
+                 </Text>
+               </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
       <Toast ref={(ref) => Toast.setRef(ref)} />
@@ -597,6 +601,19 @@ const styles = StyleSheet.create({
     width: '90%',
     marginTop: 10,
     alignItems: 'center',
+  },
+  registerLink: {
+    backgroundColor: 'black',
+    padding: 15,
+    borderRadius: 8,
+    width: '90%',
+    marginTop:'2%',
+    alignItems: 'center',
+  },
+  registerText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
   registerButtonText: {
     color: 'white',

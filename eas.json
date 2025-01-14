@@ -23,6 +23,9 @@
     },
     "production": {
       "autoIncrement": true,
+      "env": {
+        "SOCKET_URL": "https://driverappmobile.onrender.com"
+      },
       "android": {
         "gradleCommand": ":app:assembleRelease",
         "cache": {

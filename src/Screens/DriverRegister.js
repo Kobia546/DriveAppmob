@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Image, View, SafeAreaView, KeyboardAvoidingView, Text, TextInput, Pressable, ImageBackground } from 'react-native';
+import { StyleSheet, Image, View, SafeAreaView, KeyboardAvoidingView, Text, TextInput, Pressable, ScrollView,Platform,Dimensions } from 'react-native';
 import { MaterialIcons, AntDesign } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
@@ -8,6 +8,8 @@ import { auth, db } from '../../firebaseConfig';
 import { createUserWithEmailAndPassword,getIdToken } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+const windowWidth = Dimensions.get('window').width;
+const windowHeight = Dimensions.get('window').height;
 
 const DriverRegister = () => {
   const [name, setName] = useState('');
@@ -102,72 +104,120 @@ const DriverRegister = () => {
 
 
   return (
-    <SafeAreaView style={styles.container}>
-        <View style={styles.logoContainer}>
-          <Image source={require('../../assets/Logo.png')} style={styles.logo} />
-        </View>
-      <KeyboardAvoidingView  >
-      
-    <View style={{ alignItems: 'center' }}>
-          <Text style={styles.title}>Inscription Chauffeur</Text>
-        </View>
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={styles.container}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={true}
+          bounces={false}
+        >
+          <View style={styles.innerContainer}>
+            <View style={styles.logoContainer}>
+              <Image 
+                source={require('../../assets/Logo.png')} 
+                style={styles.logo}
+                resizeMode="contain"
+              />
+            </View>
 
-        <View style={styles.inputContainer}>
-          <AntDesign name="user" size={24} color="gray" />
-          <TextInput
-            value={name}
-            onChangeText={setName}
-            placeholder="Nom"
-            style={styles.inputField}
-          />
-        </View>
+            <Text style={styles.title}>Inscription Chauffeur</Text>
 
-        <View style={styles.inputContainer}>
-          <MaterialIcons name="email" size={24} color="gray" />
-          <TextInput
-            value={email}
-            onChangeText={setEmail}
-            placeholder="Email"
-            style={styles.inputField}
-          />
-        </View>
-        <View style={styles.inputContainer}>
-          <AntDesign name="lock" size={24} color="gray" marginLeft={10} />
-          <TextInput
-            value={password}
-            onChangeText={(text) => setPassword(text)}
-            secureTextEntry={true}
-            placeholder='Entrez votre mot de passe'
-            style={styles.inputField}
-          />
-           </View>
-        <View style={styles.inputContainer}>
-          <AntDesign name="phone" size={24} color="gray" />
-          <TextInput
-            value={phoneNumber}
-            onChangeText={setPhoneNumber}
-            placeholder="Numéro de téléphone"
-            style={styles.inputField}
-            keyboardType="numeric"
-          />
-        </View>
+            <View style={styles.formContainer}>
+              <View style={styles.inputContainer}>
+                <AntDesign name="user" size={24} color="gray" />
+                <TextInput
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="Nom"
+                  style={styles.inputField}
+                />
+              </View>
 
-        <Pressable onPress={() => handlePickImage(setLicenseImage)} style={styles.imagePickerButton}>
-          <Text style={styles.imagePickerText}>Sélectionner Permis de Conduire</Text>
-        </Pressable>
-        {licenseImage && <Image source={{ uri: licenseImage }} style={styles.previewImage} />}
+              <View style={styles.inputContainer}>
+                <MaterialIcons name="email" size={24} color="gray" />
+                <TextInput
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="Email"
+                  style={styles.inputField}
+                />
+              </View>
 
-        <Pressable onPress={() => handlePickImage(setIdCardImage)} style={styles.imagePickerButton}>
-          <Text style={styles.imagePickerText}>Sélectionner Carte d'Identité</Text>
-        </Pressable>
-        {idCardImage && <Image source={{ uri: idCardImage }} style={styles.previewImage} />}
+              <View style={styles.inputContainer}>
+                <AntDesign name="lock" size={24} color="gray" />
+                <TextInput
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={true}
+                  placeholder="Entrez votre mot de passe"
+                  style={styles.inputField}
+                />
+              </View>
 
-        <Pressable onPress={handleRegister} style={styles.registerButton}>
-          <Text style={{ textAlign: 'center', color: 'white', fontWeight: 'bold' }}>S'inscrire</Text>
-        </Pressable>
-      </KeyboardAvoidingView>
+              <View style={styles.inputContainer}>
+                <AntDesign name="phone" size={24} color="gray" />
+                <TextInput
+                  value={phoneNumber}
+                  onChangeText={setPhoneNumber}
+                  placeholder="Numéro de téléphone"
+                  style={styles.inputField}
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.imageSection}>
+                <Pressable 
+                  onPress={() => handlePickImage(setLicenseImage)} 
+                  style={styles.imagePickerButton}
+                >
+                  <Text style={styles.imagePickerText}>
+                    {licenseImage ? 'Modifier le permis de conduire' : 'Sélectionner Permis de Conduire'}
+                  </Text>
+                </Pressable>
+                
+                {licenseImage && (
+                  <View style={styles.imagePreviewContainer}>
+                    <Image 
+                      source={{ uri: licenseImage }} 
+                      style={styles.previewImage} 
+                      resizeMode="contain"
+                    />
+                  </View>
+                )}
+
+                <Pressable 
+                  onPress={() => handlePickImage(setIdCardImage)} 
+                  style={styles.imagePickerButton}
+                >
+                  <Text style={styles.imagePickerText}>
+                    {idCardImage ? 'Modifier la carte d\'identité' : 'Sélectionner Carte d\'Identité'}
+                  </Text>
+                </Pressable>
+                
+                {idCardImage && (
+                  <View style={styles.imagePreviewContainer}>
+                    <Image 
+                      source={{ uri: idCardImage }} 
+                      style={styles.previewImage}
+                      resizeMode="contain"
+                    />
+                  </View>
+                )}
+              </View>
+
+              <Pressable onPress={handleRegister} style={styles.registerButton}>
+                <Text style={styles.registerButtonText}>S'inscrire</Text>
+              </Pressable>
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
       <Toast ref={(ref) => Toast.setRef(ref)} />
-    </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -175,70 +225,97 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: 'white',
+  },
+  safeArea: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  innerContainer: {
+    paddingHorizontal: windowWidth * 0.05,
+    paddingBottom: windowHeight * 0.05,
     alignItems: 'center',
-    // justifyContent: 'center',
-    // paddingHorizontal: 20,
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 30,
+    marginVertical: windowHeight * 0.03,
   },
   logo: {
-    width: 150,
-    height: 100,
-    top: 45,
+    width: windowWidth * 0.4,
+    height: windowHeight * 0.1,
+    maxWidth: 200,
+    maxHeight: 100,
   },
   title: {
-    fontSize: 24,
+    fontSize: Math.min(windowWidth * 0.06, 24),
     fontWeight: 'bold',
-    marginBottom: 30,
-    top: 80,
+    marginBottom: windowHeight * 0.03,
+    textAlign: 'center',
+  },
+  formContainer: {
+    width: '100%',
+    alignItems: 'center',
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#D0D0D0',
     borderRadius: 5,
-    marginBottom: 15,
-    paddingHorizontal: 10,
-    top: 80,
-  },
- 
-  inputField: {
-    padding: 10,
-    width: 300,
+    marginBottom: windowHeight * 0.02,
+    width: '100%',
+    maxWidth: 500,
+    paddingHorizontal: windowWidth * 0.03,
     height: 50,
-    fontSize: 18,
+  },
+  inputField: {
+    flex: 1,
+    marginLeft: windowWidth * 0.02,
+    fontSize: Math.min(windowWidth * 0.04, 18),
+  },
+  imageSection: {
+    width: '100%',
+    marginVertical: windowHeight * 0.02,
   },
   imagePickerButton: {
-    backgroundColor: '#00A0E4',
+    backgroundColor: '#1b5988',
     borderRadius: 5,
-    padding: 10,
-    marginVertical: 10,
+    padding: windowWidth * 0.03,
+    marginVertical: windowHeight * 0.01,
+    width: '100%',
+    maxWidth: 500,
     alignItems: 'center',
-    top: 70,
   },
   imagePickerText: {
     color: 'white',
     fontWeight: 'bold',
+    fontSize: Math.min(windowWidth * 0.04, 16),
+  },
+  imagePreviewContainer: {
+    width: '100%',
+    height: windowHeight * 0.2,
+    marginVertical: windowHeight * 0.01,
+    borderRadius: 5,
+    backgroundColor: '#f0f0f0',
+    overflow: 'hidden',
   },
   previewImage: {
-    
-   
+    width: '100%',
+    height: '100%',
   },
   registerButton: {
-    marginTop:150,
     backgroundColor: 'black',
-    marginLeft: 'auto',
-    marginRight: 'auto',
     borderRadius: 6,
-    width: 200,
-    padding: 15,
+    width: '80%',
+    maxWidth: 400,
+    padding: windowWidth * 0.04,
+    alignItems: 'center',
+    marginTop: windowHeight * 0.03,
   },
   registerButtonText: {
     color: 'white',
     fontWeight: 'bold',
+    fontSize: Math.min(windowWidth * 0.04, 16),
   },
 });
-
 export default DriverRegister;
