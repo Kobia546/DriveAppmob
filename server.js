@@ -11,7 +11,19 @@ const io = new Server(httpServer, {
   cors: {
     origin: "*",
     methods: ["GET", "POST"]
+  },
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  transports: ['websocket', 'polling'],
+  allowEIO3: true,
+  cookie: {
+    name: "socket-io",
+    httpOnly: true,
+    secure: true
   }
+});
+app.get('/health', (req, res) => {
+  res.status(200).send('OK');
 });
 
 // Stockage des connexions de chauffeurs
