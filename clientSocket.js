@@ -3,7 +3,8 @@ import { io } from 'socket.io-client';
 class SocketService {
   constructor() {
     this.socket = null;
-    this.serverUrl = 'wss://driverappmobile.onrender.com';
+    this.serverUrl = 'https://driverappmobile.onrender.com';
+    
     this.isConnected = false;
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 5;
@@ -20,7 +21,7 @@ class SocketService {
     return new Promise((resolve, reject) => {
       try {
         this.socket = io(this.serverUrl, {
-          transports: ['websocket', 'polling'],
+          transports: ['polling', 'websocket'],
           upgrade: true,
           reconnection: true,
           reconnectionAttempts: this.maxReconnectAttempts,
@@ -106,36 +107,38 @@ class SocketService {
   }
 
   async connectAsDriver(driverId) {
+    console.log('[Driver Connect] Démarrage de la connexion pour le chauffeur:', driverId);
+    
     if (!this.socket || !this.isConnected) {
-      try {
-        await this.connect();
-      } catch (error) {
-        console.error('Impossible de se connecter au serveur:', error);
-        return false;
-      }
+      await this.connect();
     }
   
     return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('Driver connection confirmation timeout'));
-      }, 10000);
-
-      console.log(`Tentative de connexion en tant que chauffeur ${driverId}`);
+      // Ajout d'un log pour confirmer l'envoi
+      console.log('[Driver Connect] Émission de driver:connect avec ID:', driverId);
+      
       this.socket.emit('driver:connect', driverId);
   
-      this.socket.once('driver:connect:confirmation', (confirmation) => {
+      const timeout = setTimeout(() => {
+        console.log('[Driver Connect] Timeout de la confirmation');
+        reject(new Error('Driver connection timeout'));
+      }, 10000);
+  
+      // Écouteur de confirmation
+      this.socket.once('driver:connect:confirmation', (response) => {
         clearTimeout(timeout);
-        console.log('Confirmation connexion chauffeur:', confirmation);
-        
-        if (confirmation.status === 'success') {
-          resolve(true);
+        console.log('[Driver Connect] Réponse reçue:', response);
+  
+        if (response.status === 'success') {
+          console.log('[Driver Connect] Connexion réussie');
+          resolve(response);
         } else {
-          reject(new Error(confirmation.error || 'Driver connection failed'));
+          console.log('[Driver Connect] Échec de la connexion:', response.error);
+          reject(new Error(response.error || 'Connection failed'));
         }
       });
     });
   }
-
   sendNewOrder(orderData) {
     return new Promise((resolve, reject) => {
       if (!this.socket || !this.isConnected) {
