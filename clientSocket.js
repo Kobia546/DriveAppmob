@@ -3,7 +3,7 @@ import { io } from 'socket.io-client';
 class SocketService {
   constructor() {
     this.socket = null;
-    this.serverUrl = 'wss://driverappmobile.onrender.com';
+    this.serverUrl = 'https://driverappmobile.onrender.com';
     this.isConnected = false;
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 5;
@@ -20,7 +20,7 @@ class SocketService {
     return new Promise((resolve, reject) => {
       try {
         this.socket = io(this.serverUrl, {
-          transports: ['websocket', 'polling'],
+          transports: ['polling', 'websocket'],
           upgrade: true,
           reconnection: true,
           reconnectionAttempts: this.maxReconnectAttempts,
