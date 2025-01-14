@@ -3,7 +3,7 @@ import { io } from 'socket.io-client';
 class SocketService {
   constructor() {
     this.socket = null;
-    this.serverUrl = 'http://driverappmobile.onrender.com';  
+    this.serverUrl = 'wss://driverappmobile.onrender.com';  
     this.isConnected = false;
   }
 
