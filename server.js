@@ -129,28 +129,7 @@ class DriversManager {
     return false;
   }
 
-  cleanInactiveDrivers() {
-    const now = Date.now();
-    const timeout = 5 * 60 * 1000;
-    console.log('[DriversManager] Nettoyage des chauffeurs inactifs...');
-
-    for (const [driverId, lastPing] of this.lastPing.entries()) {
-      if (now - lastPing > timeout) {
-        const socketId = this.connectedDrivers.get(driverId);
-        this.connectedDrivers.delete(driverId);
-        this.lastPing.delete(driverId);
-        console.log(`[DriversManager] Chauffeur ${driverId} retiré pour inactivité`);
-        
-        if (socketId) {
-          io.to(socketId).emit('driver:disconnect', {
-            reason: 'inactivity',
-            timestamp: new Date().toISOString()
-          });
-        }
-      }
-    }
-  }
-
+ 
   logStatus() {
     console.log('=== ÉTAT DÉTAILLÉ DES CONNEXIONS ===');
     console.log('Nombre total de chauffeurs:', this.connectedDrivers.size);
