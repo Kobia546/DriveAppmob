@@ -39,7 +39,7 @@ class DriversManager {
     setInterval(() => {
       this.logStatus();
       this.cleanInactiveDrivers();
-    }, 30000);
+    }, 5 * 60 * 1000);
   }
 
   addDriver(driverId, socketId) {
@@ -50,11 +50,12 @@ class DriversManager {
       return false;
     }
 
+    // Si le chauffeur existe déjà, on met juste à jour son socketId
     this.connectedDrivers.set(driverId, socketId);
     this.lastPing.set(driverId, Date.now());
     
     const added = this.connectedDrivers.has(driverId);
-    console.log(`[DriversManager] Chauffeur ${added ? 'ajouté' : 'non ajouté'}`);
+    console.log(`[DriversManager] Chauffeur ${added ? 'ajouté/mis à jour' : 'non ajouté'}`);
     
     return added;
   }
@@ -65,15 +66,45 @@ class DriversManager {
     
     for (const [driverId, storedSocketId] of this.connectedDrivers.entries()) {
       if (storedSocketId === socketId) {
-        this.connectedDrivers.delete(driverId);
-        this.lastPing.delete(driverId);
-        removedDriverId = driverId;
-        console.log(`[DriversManager] Chauffeur ${driverId} supprimé`);
+        // On vérifie si le dernier ping date de plus d'une heure
+        const lastPingTime = this.lastPing.get(driverId);
+        const timeSinceLastPing = Date.now() - lastPingTime;
+        
+        if (timeSinceLastPing > 60 * 60 * 1000) { // 1 heure
+          this.connectedDrivers.delete(driverId);
+          this.lastPing.delete(driverId);
+          removedDriverId = driverId;
+          console.log(`[DriversManager] Chauffeur ${driverId} supprimé après 1h d'inactivité`);
+        } else {
+          console.log(`[DriversManager] Chauffeur ${driverId} conservé car actif récemment`);
+        }
         break;
       }
     }
     
     return removedDriverId;
+  }
+
+  cleanInactiveDrivers() {
+    const now = Date.now();
+    const timeout = 60 * 60 * 1000; // 1 heure
+    console.log('[DriversManager] Nettoyage des chauffeurs inactifs...');
+
+    for (const [driverId, lastPing] of this.lastPing.entries()) {
+      if (now - lastPing > timeout) {
+        const socketId = this.connectedDrivers.get(driverId);
+        this.connectedDrivers.delete(driverId);
+        this.lastPing.delete(driverId);
+        console.log(`[DriversManager] Chauffeur ${driverId} retiré après 1h d'inactivité`);
+        
+        if (socketId) {
+          io.to(socketId).emit('driver:disconnect', {
+            reason: 'inactivity',
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+    }
   }
 
   getDriverSocket(driverId) {
@@ -226,31 +257,31 @@ io.on('connection', (socket) => {
 
   socket.on('order:accept', async ({ orderId, driverId, clientId, driverInfo }) => {
     console.log('=== ACCEPTATION COMMANDE ===');
-    console.log('Détails:', { orderId, driverId, clientId });
+    console.log('Détails:', { orderId, driverId, clientId, driverInfo });
     
     try {
-      io.emit(`order:accepted:${clientId}`, {
-        orderId,
-        driverId,
-        driverInfo,
-        timestamp: new Date().toISOString()
-      });
+        // Émettre l'événement à tous les clients
+        io.emit('order:accepted', {
+            orderId,
+            clientId,
+            driverInfo,
+            timestamp: new Date().toISOString()
+        });
 
-      socket.emit('order:accept:confirmation', {
-        status: 'success',
-        orderId,
-        timestamp: new Date().toISOString()
-      });
+        socket.emit('order:accept:confirmation', {
+            status: 'success',
+            orderId,
+            timestamp: new Date().toISOString()
+        });
 
     } catch (error) {
-      console.error('Erreur acceptation commande:', error);
-      socket.emit('order:accept:confirmation', {
-        status: 'error',
-        error: error.message
-      });
+        console.error('Erreur acceptation commande:', error);
+        socket.emit('order:accept:confirmation', {
+            status: 'error',
+            error: error.message
+        });
     }
-  });
-
+});
   socket.on('ping', () => {
     console.log(`Ping reçu de ${socket.id}`);
     for (const [driverId, socketId] of driversManager.connectedDrivers.entries()) {

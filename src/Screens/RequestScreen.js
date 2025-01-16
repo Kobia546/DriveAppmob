@@ -11,37 +11,7 @@ import { BlurView } from 'expo-blur';
 import axios from 'axios';
 import { socketService } from '../../clientSocket';
 import SearchingBottomSheet from '../../SearchingBottomSheet';
-const OrderAcceptanceNotification = ({ isVisible, driverInfo, onClose, navigation }) => {
-    if (!isVisible) return null;
-    
-    return (
-        <Modal
-            animationType="slide"
-            transparent={true}
-            visible={isVisible}
-            onRequestClose={onClose}
-        >
-            <View style={styles.centeredView}>
-                <View style={styles.modalView}>
-                    <Text style={styles.modalTitle}>Course acceptée!</Text>
-                    <Text style={styles.modalText}>
-                        Votre chauffeur {driverInfo?.driverName} arrive bientôt.
-                        {'\n'}Téléphone: {driverInfo?.driverPhone}
-                    </Text>
-                    <TouchableOpacity
-                        style={styles.modalButton}
-                        onPress={() => {
-                            onClose();
-                            navigation.navigate('OrderTracking', { driverInfo });
-                        }}
-                    >
-                        <Text style={styles.modalButtonText}>Voir les détails</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-        </Modal>
-    );
-};
+
 
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -126,24 +96,42 @@ export default function RequestScreen({ navigation }) {
         if (auth.currentUser) {
             const userId = auth.currentUser.uid;
             
-            socketService.connect();
-
-            socketService.socket.on('order:accepted', (data) => {
-                console.log('Commande acceptée, données reçues:', data);
-                if (data.clientId === userId) {
-                    setAcceptedOrderInfo(data.driverInfo);
-                    setShowAcceptanceNotification(true);
+            const setupSocket = async () => {
+                try {
+                    await socketService.connect();
+                    
+                    // Supprimer l'ancien listener pour éviter les doublons
+                    socketService.socket.off('order:accepted');
+                    
+                    // Ajouter le nouveau listener
+                    socketService.socket.on('order:accepted', (data) => {
+                        console.log('Commande acceptée, données reçues:', data);
+                        if (data.clientId === userId) {
+                            setAcceptedOrderInfo({
+                                driverName: data.driverInfo.driverName,
+                                driverPhone: data.driverInfo.driverPhone,
+                                driverId: data.driverInfo.driverId,
+                                orderId: data.orderId
+                            });
+                            setShowAcceptanceNotification(true);
+                        }
+                    });
+                } catch (error) {
+                    console.error('Erreur connexion socket:', error);
                 }
-            });
-
+            };
+    
+            setupSocket();
+    
             return () => {
-                socketService.socket.off('order:accepted');
-                socketService.disconnect();
+                if (socketService.socket) {
+                    socketService.socket.off('order:accepted');
+                }
             };
         }
     }, []);
-
-    // Ajoutez cette fonction pour gérer la fermeture de la notification
+    
+    // Ajouter la fonction de fermeture de notification
     const handleCloseNotification = () => {
         setShowAcceptanceNotification(false);
         setAcceptedOrderInfo(null);
@@ -399,12 +387,7 @@ export default function RequestScreen({ navigation }) {
                     </View>
                 </View>
             </Modal> */}
-             <OrderAcceptanceNotification 
-        isVisible={showAcceptanceNotification}
-        driverInfo={acceptedOrderInfo}
-        onClose={handleCloseNotification}
-        navigation={navigation}
-      />
+          
         </View>
     );
 }

@@ -13,6 +13,7 @@ import * as Notifications from 'expo-notifications';
 import axios from 'axios';
 import { socketService } from '../../clientSocket';
 import SearchingBottomSheet from '../../SearchingBottomSheet';
+import SimpleOrderNotification from '../Screens/SimpleOrderNotification';
 
 const GOOGLE_MAPS_APIKEY = 'AIzaSyBFu_n9UIVYrbGWhl88xzQM5gtPTUk1bm8';
 
@@ -66,7 +67,9 @@ export default class MapComponent extends Component {
             returnDate: null,
             showDepartureDatePicker: false,
             showReturnDatePicker: false,
-            isSearchingDrivers: false
+            isSearchingDrivers: false,
+            showAcceptanceNotification: false,
+            acceptedOrderInfo: null,
             
         };
     }
@@ -175,6 +178,20 @@ export default class MapComponent extends Component {
           if (!socketService.isConnected) {
             await socketService.connect();
           }
+          socketService.socket.on('order:accepted', (data) => {
+            console.log('Commande acceptée, données reçues:', data);
+            if (data.clientId === userId) {
+                this.setState({
+                    acceptedOrderInfo: {
+                        driverName: data.driverInfo.driverName,
+                        driverPhone: data.driverInfo.driverPhone,
+                        driverId: data.driverInfo.driverId,
+                        orderId: data.orderId
+                    },
+                    showAcceptanceNotification: true
+                });
+            }
+        });
       
           // Envoyer la commande via socket
           await socketService.sendNewOrder(orderDataWithId);
@@ -187,9 +204,15 @@ export default class MapComponent extends Component {
           console.error("Erreur lors de l'envoi de la commande:", error);
           alert("Une erreur s'est produite lors de l'envoi de la commande.");
         } finally {
-          this.setState({ isSearchingDrivers: false });
+          this.setState({ isSearchingDrivers: false, showAcceptanceNotification: true });
         }
       };
+      handleCloseNotification = () => {
+        this.setState({
+            showAcceptanceNotification: false,
+            acceptedOrderInfo: null
+        });
+    };
     getAllDriverTokens = async () => {
         const tokens = [];
         try {
@@ -430,8 +453,14 @@ export default class MapComponent extends Component {
                 <SearchingBottomSheet
     isVisible={this.state.isSearchingDrivers}
     origin={userOrigin.address}
-    destination={userDestination.address}
+    destination={userDestination.address}/>
+
+<SimpleOrderNotification 
+  isVisible={this.state.showAcceptanceNotification}
+  driverInfo={this.state.acceptedOrderInfo}
+  onClose={this.handleCloseNotification}
 />
+
             </View>
         );
     }

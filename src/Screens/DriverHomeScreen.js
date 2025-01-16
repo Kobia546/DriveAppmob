@@ -83,7 +83,7 @@ const AcceptedRidesSection = ({ acceptedRides, onRidePress }) => (
   <View style={styles.acceptedRidesContainer}>
     <Text style={styles.sectionTitle}>Mes courses du jour</Text>
     <ScrollView 
-      horizontal 
+      showsVerticalScrollIndicator
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.ridesScrollView}
     >
@@ -218,45 +218,50 @@ const DriverHomeScreen = ({ navigation }) => {
 
       // Filtrer et organiser les courses
       const today = new Date().setHours(0, 0, 0, 0);
-
       const todayOrders = ordersData.filter(order => {
-        const orderDate = new Date(order.acceptedAt?.toDate()).setHours(0, 0, 0, 0);
-        return orderDate === today;
+        const orderDate = order.acceptedAt?.toDate();
+        return orderDate && new Date(orderDate).setHours(0, 0, 0, 0) === today;
       });
-
-      const accepted = todayOrders.filter(order =>
-        ['accepted', 'inProgress'].includes(order.status)
+  
+      // Filtrer les courses acceptées ou en cours
+      const activeRides = todayOrders.filter(order => 
+        order.status === 'accepted' || order.status === 'inProgress'
       ).map(order => ({
         ...order,
-        estimatedTime: 15, 
+        estimatedTime: order.estimatedTime || 15,
         status: order.status === 'inProgress' ? 'enCours' : 'attente'
       }));
-
-      const completed = todayOrders.filter(order =>
-        order.status === 'accepted'
+  
+      // Filtrer les courses terminées
+      const completedRides = todayOrders.filter(order => 
+        order.status === 'completed'
       ).map(order => ({
         ...order,
-        completedAt: new Date(order.completedAt?.toDate()).toLocaleTimeString('fr-FR', {
+        completedAt: order.completedAt?.toDate().toLocaleTimeString('fr-FR', {
           hour: '2-digit',
           minute: '2-digit'
         }),
-        duration: Math.round((order.completedAt?.toDate() - order.startTime?.toDate()) / 60000) || 0
+        duration: order.completedAt && order.startTime ? 
+          Math.round((order.completedAt.toDate() - order.startTime.toDate()) / 60000) : 0
       }));
-
+  
       // Calculer les statistiques
-      const totalEarnings = completed.reduce((sum, order) => sum + (order.price || 0), 0);
-
-      setAcceptedRides(accepted);
+      const totalEarnings = [...activeRides, ...completedRides]
+        .reduce((sum, order) => sum + (order.price || 0), 0);
+  
+      console.log('Courses actives trouvées:', activeRides.length);
+      console.log('Courses du jour:', activeRides);
+  
+      setAcceptedRides(activeRides);
       setDailyStats({
         totalEarnings,
-        completedRides: completed.length
+        completedRides: completedRides.length
       });
       setOrders(ordersData);
     } catch (error) {
       console.error('Error fetching orders:', error);
     }
   };
-
   useEffect(() => {
     const subscription = Notifications.addNotificationReceivedListener(notification => {
       navigation.navigate('AcceptOrderScreen', {
