@@ -50,12 +50,16 @@ class DriversManager {
       return false;
     }
 
+
     // Si le chauffeur existe déjà, on met juste à jour son socketId
+
     this.connectedDrivers.set(driverId, socketId);
     this.lastPing.set(driverId, Date.now());
     
     const added = this.connectedDrivers.has(driverId);
+
     console.log(`[DriversManager] Chauffeur ${added ? 'ajouté/mis à jour' : 'non ajouté'}`);
+
     
     return added;
   }
@@ -95,6 +99,7 @@ class DriversManager {
         const socketId = this.connectedDrivers.get(driverId);
         this.connectedDrivers.delete(driverId);
         this.lastPing.delete(driverId);
+
         console.log(`[DriversManager] Chauffeur ${driverId} retiré après 1h d'inactivité`);
         
         if (socketId) {
@@ -105,7 +110,7 @@ class DriversManager {
         }
       }
     }
-  }
+   
 
   getDriverSocket(driverId) {
     const socketId = this.connectedDrivers.get(driverId);
@@ -257,6 +262,7 @@ io.on('connection', (socket) => {
 
   socket.on('order:accept', async ({ orderId, driverId, clientId, driverInfo }) => {
     console.log('=== ACCEPTATION COMMANDE ===');
+
     console.log('Détails:', { orderId, driverId, clientId, driverInfo });
     
     try {
@@ -282,6 +288,7 @@ io.on('connection', (socket) => {
         });
     }
 });
+
   socket.on('ping', () => {
     console.log(`Ping reçu de ${socket.id}`);
     for (const [driverId, socketId] of driversManager.connectedDrivers.entries()) {
