@@ -4,6 +4,7 @@ class SocketService {
   constructor() {
     this.socket = null;
     this.serverUrl = 'https://driverappmobile.onrender.com';
+
     
     this.isConnected = false;
     this.reconnectAttempts = 0;

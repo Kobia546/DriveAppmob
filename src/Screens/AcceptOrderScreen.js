@@ -139,8 +139,8 @@ const AcceptOrderScreen = ({ route, navigation }) => {
 
             return () => {
                 if (socketService.socket) {
-                    socketService.socket.off('order:accepted');
-                    socketService.disconnect();
+                     socketService.socket.off('order:accepted');
+                    // socketService.disconnect();
                 }
             };
         }
