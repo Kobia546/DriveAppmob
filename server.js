@@ -84,10 +84,9 @@ class DriversManager {
     
     return removedDriverId;
   }
-
-  cleanInactiveDrivers() {
+cleanInactiveDrivers() {
     const now = Date.now();
-    const timeout = 60 * 60 * 1000; // 1 heure
+    const timeout = 5 * 60 * 1000; // 5 minutes
     console.log('[DriversManager] Nettoyage des chauffeurs inactifs...');
 
     for (const [driverId, lastPing] of this.lastPing.entries()) {
@@ -95,7 +94,9 @@ class DriversManager {
         const socketId = this.connectedDrivers.get(driverId);
         this.connectedDrivers.delete(driverId);
         this.lastPing.delete(driverId);
+
         console.log(`[DriversManager] Chauffeur ${driverId} retiré après 1h d'inactivité`);
+
         
         if (socketId) {
           io.to(socketId).emit('driver:disconnect', {
