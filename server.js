@@ -130,6 +130,7 @@ class DriversManager {
   }
 
  
+
   logStatus() {
     console.log('=== ÉTAT DÉTAILLÉ DES CONNEXIONS ===');
     console.log('Nombre total de chauffeurs:', this.connectedDrivers.size);
