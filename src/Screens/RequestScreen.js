@@ -170,9 +170,10 @@ export default function RequestScreen({ navigation }) {
             const response = await axios.get('https://maps.googleapis.com/maps/api/place/autocomplete/json', {
                 params: {
                     input: query,
-                    location: '5.3600,-4.0083',
-                    radius: 10000,
-                    key: GOOGLE_MAPS_APIKEY
+                    location: '5.3600,-4.0083', // Coordonnées d'Abidjan
+                    radius: 10000, // Rayon de recherche en mètres
+                    key: GOOGLE_MAPS_APIKEY,
+                    language: 'fr' // Pour obtenir les résultats en français
                 }
             });
 

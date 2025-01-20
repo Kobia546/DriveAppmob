@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { colors } from '../global/style';
 import { auth, db } from '../../firebaseConfig';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc,runTransaction } from 'firebase/firestore';
+import { serverTimestamp } from 'firebase/firestore';
 import { socketService } from '../../clientSocket';
 
 const AcceptOrderScreen = ({ route, navigation }) => {
@@ -52,100 +53,144 @@ const AcceptOrderScreen = ({ route, navigation }) => {
     }, [driverName, driverPhone]);
 
     const handleAccept = async () => {
-        console.log('handleAccept called', orderDetails);
         const driverId = auth.currentUser?.uid;
-
+    
         if (!driverId) {
             alert("Vous devez être connecté pour accepter une course.");
             return;
         }
-
+    
         try {
-            const orderDocRef = doc(db, 'orders', orderDetails.id);
-            await updateDoc(orderDocRef, {
-                status: 'accepted',
-                driverId: driverId,
-                acceptedAt: new Date(),
-                driverName: driverName,
-                driverPhone: driverPhone,
+            // 1. Vérification avec transaction Firestore
+            const orderRef = doc(db, 'orders', orderDetails.id);
+            
+            await runTransaction(db, async (transaction) => {
+                const orderDoc = await transaction.get(orderRef);
+                
+                if (!orderDoc.exists()) {
+                    throw new Error("Cette course n'existe plus.");
+                }
+    
+                const orderData = orderDoc.data();
+                
+                if (orderData.status !== 'pending') {
+                    throw new Error("Cette course n'est plus disponible.");
+                }
+    
+                // Mettre à jour le statut immédiatement pour empêcher d'autres acceptations
+                transaction.update(orderRef, {
+                    status: 'accepted',
+                    driverId: driverId,
+                    acceptedAt: serverTimestamp(),
+                });
             });
-            console.log('Order updated successfully');
-
-            if (!socketService.socket?.connected) {
-                await socketService.connect();
-                await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-
-            const acceptanceData = {
+    
+            // 2. Récupérer les informations du chauffeur
+            const driverDocRef = doc(db, 'drivers', driverId);
+            const driverDoc = await getDoc(driverDocRef);
+            const driverData = driverDoc.data();
+    
+            // 3. Préparer les données du chauffeur
+            const driverAcceptanceData = {
                 orderId: orderDetails.id,
                 driverId: driverId,
                 clientId: orderDetails.userId,
                 driverInfo: {
-                    driverName,
-                    driverPhone,
-                    driverId,
+                    driverId: driverId,
+                    driverName: driverName,
+                    driverPhone: driverPhone,
+                    profileImage: driverData.profileImage,
                 },
-                orderDetails: {
-                    pickupLocation: orderDetails.pickupLocation,
-                    dropoffLocation: orderDetails.dropoffLocation,
-                    price: orderDetails.price,
-                    distance: orderDetails.distance
-                }
+                timestamp: new Date().toISOString()
             };
-
-            socketService.socket.emit('order:accept', acceptanceData);
-            console.log('Order acceptance emitted via socket:', acceptanceData);
-            navigation.navigate("MapScreen", { orderDetails: { ...orderDetails, driverInfo: acceptanceData.driverInfo } });
-
-            socketService.socket.once('order:accept:confirmed', (response) => {
-                console.log('Server confirmed order acceptance:', response);
-            });
-
+    
+            // 4. Connexion socket si nécessaire
+            if (!socketService.socket?.connected) {
+                await socketService.connect();
+            }
+    
+            // 5. Notification via socket
+            try {
+                await socketService.acceptOrder(
+                    orderDetails.id,
+                    driverId,
+                    orderDetails.userId,
+                    driverAcceptanceData.driverInfo
+                );
+    
+                // 6. Navigation vers l'écran de la course
+                navigation.navigate("MapScreen", {
+                    orderDetails: {
+                        ...orderDetails,
+                        driverInfo: driverAcceptanceData.driverInfo,
+                        status: 'accepted'
+                    }
+                });
+    
+            } catch (error) {
+                // En cas d'erreur socket, on annule l'acceptation
+                await updateDoc(orderRef, {
+                    status: 'pending',
+                    driverId: null,
+                    acceptedAt: null
+                });
+                
+                throw error;
+            }
+    
         } catch (error) {
-            console.error("Erreur lors de la mise à jour de la commande:", error);
-            alert("Une erreur s'est produite lors de la mise à jour de la commande.");
+            if (error.message.includes("n'est plus disponible") || 
+                error.message.includes("n'existe plus")) {
+                alert(error.message);
+            } else {
+                console.error("Erreur:", error);
+                alert("Une erreur s'est produite. Veuillez réessayer.");
+            }
+            navigation.goBack();
         }
     };
+   // Dans votre composant qui gère les événements socket
 
-    useEffect(() => {
-        if (auth.currentUser) {
-            const userId = auth.currentUser.uid;
+useEffect(() => {
+    if (auth.currentUser) {
+        const userId = auth.currentUser.uid;
 
-            const setupSocketConnection = async () => {
-                try {
-                    await socketService.connect();
+        const setupSocketConnection = async () => {
+            try {
+                await socketService.connect();
 
-                    socketService.socket.off('order:accepted');
+                socketService.socket.off('order:accepted');
 
-                    socketService.socket.on('order:accepted', (data) => {
-                        console.log('Commande acceptée, données reçues:', data);
-                        if (data.clientId === userId) {
-                            setAcceptedOrderInfo({
+                socketService.socket.on('order:accepted', (data) => {
+                    console.log('Commande acceptée, données reçues:', data);
+                    if (data.clientId === userId) {
+                        // Modifier cette partie pour inclure toutes les informations du chauffeur
+                        setAcceptedOrderInfo({
+                            driverInfo: {
+                                driverId: data.driverInfo.driverId,
                                 driverName: data.driverInfo.driverName,
                                 driverPhone: data.driverInfo.driverPhone,
-                                driverId: data.driverInfo.driverId,
-                                orderId: data.orderId,
-                                orderDetails: data.orderDetails
-                            });
-                            setShowAcceptanceNotification(true);
-                        }
-                    });
-                } catch (error) {
-                    console.error('Erreur lors de la configuration du socket:', error);
-                }
-            };
+                                profileImage: data.driverInfo.profileImage  // Ajouter cette ligne
+                            },
+                            orderId: data.orderId
+                        });
+                        setShowAcceptanceNotification(true);
+                    }
+                });
+            } catch (error) {
+                console.error('Erreur lors de la configuration du socket:', error);
+            }
+        };
 
-            setupSocketConnection();
+        setupSocketConnection();
 
-            return () => {
-                if (socketService.socket) {
-                     socketService.socket.off('order:accepted');
-                    // socketService.disconnect();
-                }
-            };
-        }
-    }, []);
-
+        return () => {
+            if (socketService.socket) {
+                socketService.socket.off('order:accepted');
+            }
+        };
+    }
+}, []);
     const handleReject = () => {
         navigation.goBack();
     };
