@@ -28,6 +28,7 @@ import {
   createUserWithEmailAndPassword,
   getIdToken
 } from 'firebase/auth';
+import LoadingModal from './LoadingModal';
 
 import { doc, setDoc } from 'firebase/firestore';
 import User from '../../user';
@@ -464,6 +465,13 @@ const Register = () => {
                </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
+      <LoadingModal 
+      visible={loading} 
+      message={
+        
+        "Création de votre compte client..."
+      }
+    />
       <Toast ref={(ref) => Toast.setRef(ref)} />
     </SafeAreaView>
   );
