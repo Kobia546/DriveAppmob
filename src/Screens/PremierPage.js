@@ -22,26 +22,26 @@ const { width: WINDOW_WIDTH, height: WINDOW_HEIGHT } = Dimensions.get('window');
 const SLIDES = [
   {
     id: 1,
-    title: "Bienvenue dans l'app qui révolutionne vos courses",
+    title: "Bienvenue dans l'application qui révolutionne la manière de faire vos courses",
     subtitle: "Une nouvelle façon de faire vos courses",
     image: require("../../assets/Bienvenue.png")
   },
   {
     id: 2,
-    title: "Fatigués ? Occupé ? Laissez nous vouc conduire",
-    subtitle: "Concentrez-vous sur l'essentiel ,on s'occupe de vos courses ",
+    title: "Fatigué ? Occupé ? Laissez nous  conduire",
+    subtitle: "Détendez-vous nous sommes là pour vous servir ",
     image: require("../../assets/First.png")
   },
   {
     id: 3,
-    title: "Vous avez du travail , vous êtes en reunioin , Votre temps est précieux, Confiez nous vos courses ",
-    subtitle: "Concentrez-vous sur l'essentiel, on s'occupe du reste",
+    title: "Vous avez du travail , vous êtes en reunion , Votre temps est précieux, Confiez nous vos courses ",
+    subtitle: "Concentrez-vous sur l'essentiel, on s'occupe de vos courses",
     image: require("../../assets/Busy.png"),
   },
   {
     id: 4,
-    title: "Une équipe de confiance",
-    subtitle: "Des chauffeurs professionnels certifiés à votre service",
+    title: "N'ayez craintes,nous avons des chauffeurs professionels certifiés ",
+    subtitle: "Vous êtes avec une equipe de confiance",
     image: require("../../assets/verification.png"),
     isLastSlide: true,
   },
@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: WINDOW_WIDTH * 0.8,
-    height: WINDOW_HEIGHT * 0.4,
+    height: WINDOW_HEIGHT * 0.2,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -209,14 +209,14 @@ const styles = StyleSheet.create({
   },
   textContainer: {
     alignItems: 'center',
-    marginTop: 40,
+    marginTop: 150,
   },
   title: {
     fontSize: WINDOW_WIDTH * 0.06,
     fontWeight: 'bold',
     color: '#1b5988',
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: 19,
     letterSpacing: 0.5,
   },
   subtitle: {

@@ -61,10 +61,12 @@ const AcceptOrderScreen = ({ route, navigation }) => {
         }
     
         try {
-            // 1. Vérification avec transaction Firestore
-            const orderRef = doc(db, 'orders', orderDetails.id);
+            // 1. Vérifier si le chauffeur n'est pas déjà en course
+            const driverRef = doc(db, 'drivers', driverId);
             
             await runTransaction(db, async (transaction) => {
+                const driverDoc = await transaction.get(driverRef);
+                const orderRef = doc(db, 'orders', orderDetails.id);
                 const orderDoc = await transaction.get(orderRef);
                 
                 if (!orderDoc.exists()) {
@@ -72,25 +74,36 @@ const AcceptOrderScreen = ({ route, navigation }) => {
                 }
     
                 const orderData = orderDoc.data();
+                const driverData = driverDoc.data();
                 
+                // Vérifier le statut du chauffeur
+                if (driverData.status === 'busy' || driverData.currentOrderId) {
+                    throw new Error("Vous avez déjà une course en cours.");
+                }
+    
                 if (orderData.status !== 'pending') {
                     throw new Error("Cette course n'est plus disponible.");
                 }
     
-                // Mettre à jour le statut immédiatement pour empêcher d'autres acceptations
+                // Mettre à jour le statut de la commande
                 transaction.update(orderRef, {
                     status: 'accepted',
                     driverId: driverId,
                     acceptedAt: serverTimestamp(),
                 });
+    
+                // Mettre à jour le statut du chauffeur
+                transaction.update(driverRef, {
+                    status: 'busy',
+                    currentOrderId: orderDetails.id,
+                    lastOrderTimestamp: serverTimestamp()
+                });
             });
     
-            // 2. Récupérer les informations du chauffeur
-            const driverDocRef = doc(db, 'drivers', driverId);
-            const driverDoc = await getDoc(driverDocRef);
+            // Le reste du code de handleAccept reste identique...
+            const driverDoc = await getDoc(driverRef);
             const driverData = driverDoc.data();
     
-            // 3. Préparer les données du chauffeur
             const driverAcceptanceData = {
                 orderId: orderDetails.id,
                 driverId: driverId,
@@ -104,43 +117,29 @@ const AcceptOrderScreen = ({ route, navigation }) => {
                 timestamp: new Date().toISOString()
             };
     
-            // 4. Connexion socket si nécessaire
             if (!socketService.socket?.connected) {
                 await socketService.connect();
             }
     
-            // 5. Notification via socket
-            try {
-                await socketService.acceptOrder(
-                    orderDetails.id,
-                    driverId,
-                    orderDetails.userId,
-                    driverAcceptanceData.driverInfo
-                );
+            await socketService.acceptOrder(
+                orderDetails.id,
+                driverId,
+                orderDetails.userId,
+                driverAcceptanceData.driverInfo
+            );
     
-                // 6. Navigation vers l'écran de la course
-                navigation.navigate("MapScreen", {
-                    orderDetails: {
-                        ...orderDetails,
-                        driverInfo: driverAcceptanceData.driverInfo,
-                        status: 'accepted'
-                    }
-                });
-    
-            } catch (error) {
-                // En cas d'erreur socket, on annule l'acceptation
-                await updateDoc(orderRef, {
-                    status: 'pending',
-                    driverId: null,
-                    acceptedAt: null
-                });
-                
-                throw error;
-            }
+            navigation.navigate("MapScreen", {
+                orderDetails: {
+                    ...orderDetails,
+                    driverInfo: driverAcceptanceData.driverInfo,
+                    status: 'accepted'
+                }
+            });
     
         } catch (error) {
             if (error.message.includes("n'est plus disponible") || 
-                error.message.includes("n'existe plus")) {
+                error.message.includes("n'existe plus") ||
+                error.message.includes("déjà une course")) {
                 alert(error.message);
             } else {
                 console.error("Erreur:", error);

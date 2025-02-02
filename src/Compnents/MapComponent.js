@@ -79,6 +79,17 @@ export default class MapComponent extends Component {
     this.fetchUserCarTypes();
   }
 
+  resetMap = () => {
+    if (this._map.current) {
+      this._map.current.animateToRegion({
+        latitude: 5.3484764, // Coordonnées par défaut pour Abidjan
+        longitude: -4.0324137,
+        latitudeDelta: 0.0922,
+        longitudeDelta: 0.0421
+      });
+    }
+  };
+
   // Dans MapComponent
   fetchUserCarTypes = async () => {
     try {
@@ -115,7 +126,12 @@ export default class MapComponent extends Component {
       this.setState({ isFetchingCarTypes: false });
     }
   };
-
+  resetLocations = () => {
+    this.setState({
+      userOrigin: null,
+      userDestination: null
+    });
+  };
   calculatePrice = (distance) => {
     let pricePerKm;
     switch (this.state.carType) {
@@ -226,6 +242,8 @@ export default class MapComponent extends Component {
 
       await socketService.sendNewOrder(orderDataWithId);
       console.log('Commande envoyée avec succès');
+
+    
 
     } catch (error) {
       console.error("Erreur lors de l'envoi de la commande:", error);
