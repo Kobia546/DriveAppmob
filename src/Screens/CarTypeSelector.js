@@ -1,174 +1,162 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Image } from 'react-native';
-import { colors } from '../global/style';
+import React, { useRef, useState } from 'react';
+import { 
+  View, 
+  Text, 
+  TouchableOpacity, 
+  Animated, 
+  Dimensions, 
+  StyleSheet 
+} from 'react-native';
+import { Car } from 'lucide-react-native';
+import { BlurView } from 'expo-blur';
+
+const { width } = Dimensions.get('window');
 
 const CarTypeSelector = ({ userCarTypes, selectedType, onSelect }) => {
-  // Configuration des types de voitures avec leurs détails
+  const [activeType, setActiveType] = useState(null);
+  const animatedValues = useRef(userCarTypes.map(() => ({
+    scale: new Animated.Value(1),
+    rotate: new Animated.Value(0),
+    opacity: new Animated.Value(0.6)
+  }))).current;
+
   const carTypeDetails = {
     eco: {
       name: 'Eco',
-      price: '1500F/km',
-      image: require('../../assets/eco-car.png'),
-      description: 'Économique et efficace',
+      colors: ['#10B981', '#6EE7B7'],
+      shadowColor: '#10B981',
     },
     confort: {
-      name: 'Confort',
-      price: '2500F/km',
-      image: require('../../assets/comfort-car.png'),
-      description: 'Plus d\'espace et de confort',
+      name: 'Confort', 
+      colors: ['#3B82F6', '#93C5FD'],
+      shadowColor: '#3B82F6',
     },
     luxe: {
       name: 'Luxe',
-      price: '3000F/km',
-      image: require('../../assets/luxury-car.png'),
-      description: 'Expérience premium',
+      colors: ['#8B5CF6', '#C4B5FD'],
+      shadowColor: '#8B5CF6',
     }
   };
 
-  // Si aucun type de voiture n'est disponible
-  if (!userCarTypes || userCarTypes.length === 0) {
-    return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Aucun véhicule enregistré</Text>
-      </View>
-    );
-  }
+  const handlePress = (carType, index) => {
+    onSelect(carType);
+    setActiveType(carType);
 
-  // Si l'utilisateur n'a qu'une seule voiture
-  if (userCarTypes.length === 1) {
-    const carType = userCarTypes[0].toLowerCase();
-    const carDetails = carTypeDetails[carType];
-    
-    return (
-      <View style={styles.singleCarContainer}>
-        <View style={[styles.carCard, styles.carCardSelected]}>
-          <View style={styles.carImageContainer}>
-            <Image 
-              source={carDetails.image}
-              style={styles.carImage}
-              resizeMode="contain"
-            />
-          </View>
-          <View style={styles.carInfo}>
-            <Text style={styles.carTypeName}>{carDetails.name}</Text>
-            
-          </View>
-        </View>
-      </View>
-    );
-  }
+    userCarTypes.forEach((_, i) => {
+      Animated.parallel([
+        Animated.spring(animatedValues[i].scale, {
+          toValue: i === index ? 1.15 : 0.9,
+          friction: 3,
+          tension: 40,
+          useNativeDriver: true
+        }),
+        Animated.spring(animatedValues[i].rotate, {
+          toValue: i === index ? 1 : 0,
+          friction: 3,
+          tension: 40,
+          useNativeDriver: true
+        }),
+        Animated.spring(animatedValues[i].opacity, {
+          toValue: i === index ? 1 : 0.6,
+          friction: 3,
+          tension: 40,
+          useNativeDriver: true
+        })
+      ]).start();
+    });
+  };
 
-  // Si l'utilisateur a plusieurs voitures
   return (
-    <ScrollView 
-      horizontal 
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.carTypesContainer}
-    >
-      {userCarTypes.map((carType) => {
+    <View style={styles.container}>
+      {userCarTypes.map((carType, index) => {
         const normalizedType = carType.toLowerCase();
-        const carDetails = carTypeDetails[normalizedType];
-        if (!carDetails) return null;
-        
-        const isSelected = selectedType && selectedType.toLowerCase() === normalizedType;
-        
+        const { name, colors, shadowColor } = carTypeDetails[normalizedType];
+        const isSelected = activeType && activeType.toLowerCase() === normalizedType;
+
+        const scaleAnim = animatedValues[index].scale;
+        const rotateAnim = animatedValues[index].rotate.interpolate({
+          inputRange: [0, 1],
+          outputRange: ['0deg', '-20deg']
+        });
+        const opacityAnim = animatedValues[index].opacity;
+
         return (
-          <TouchableOpacity
+          <TouchableOpacity 
             key={normalizedType}
-            style={[
-              styles.carCard,
-              isSelected && styles.carCardSelected
-            ]}
-            onPress={() => onSelect(carType)}
+            onPress={() => handlePress(carType, index)}
+            style={styles.cardWrapper}
           >
-            <View style={styles.carImageContainer}>
-              <Image 
-                source={carDetails.image}
-                style={styles.carImage}
-                resizeMode="contain"
-              />
-            </View>
-            <View style={styles.carInfo}>
-              <Text style={[
-                styles.carTypeName,
-                isSelected && styles.carTypeNameSelected
-              ]}>
-                {carDetails.name}
-              </Text>
-             
-            </View>
+            <Animated.View 
+              style={[
+                styles.cardContainer,
+                {
+                  transform: [
+                    { scale: scaleAnim },
+                    { rotateX: rotateAnim }
+                  ],
+                  opacity: opacityAnim,
+                  shadowColor
+                }
+              ]}
+            >
+              <BlurView intensity={50} style={StyleSheet.absoluteFill} />
+              <View 
+                style={[
+                  styles.cardContent,
+                  { 
+                    backgroundColor: isSelected 
+                      ? colors[0] 
+                      : 'rgba(243, 244, 246, 0.8)' 
+                  }
+                ]}
+              >
+                <Car
+                  size={40}
+                  color={isSelected ? 'white' : '#6B7280'}
+                  strokeWidth={isSelected ? 2 : 1.5}
+                />
+                <Text style={[
+                  styles.cardText,
+                  { color: isSelected ? 'white' : '#374151' }
+                ]}>
+                  {name}
+                </Text>
+              </View>
+            </Animated.View>
           </TouchableOpacity>
         );
       })}
-    </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  errorContainer: {
-    padding: 16,
-    backgroundColor: '#FEF2F2',
-    borderRadius: 12,
-    marginVertical: 10,
-  },
-  errorText: {
-    color: '#DC2626',
-    textAlign: 'center',
-    fontSize: 14,
-  },
-  singleCarContainer: {
-    padding: 16,
-  },
-  carTypesContainer: {
-    paddingVertical: 10,
+  container: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
   },
-  carCard: {
-    width: 200,
-    marginRight: 12,
-    borderRadius: 16,
-    backgroundColor: '#F9FAFB',
-    padding: 16,
-    borderWidth: 2,
-    borderColor: 'transparent',
+  cardWrapper: {
+    width: (width - 64) / 3,
   },
-  carCardSelected: {
-    borderColor: colors.blue,
-    backgroundColor: '#F0F9FF',
+  cardContainer: {
+    borderRadius: 24,
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.3,
+    shadowRadius: 25,
+    elevation: 10,
+    overflow: 'hidden',
   },
-  carImageContainer: {
-    height: 100,
-    marginBottom: 12,
+  cardContent: {
+    height: 90,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  carImage: {
-    width: '100%',
-    height: '100%',
-  },
-  carInfo: {
-    gap: 4,
-  },
-  carTypeName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  carTypeNameSelected: {
-    color: colors.blue,
-  },
-  carTypeDescription: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 4,
-  },
-  carTypePrice: {
+  cardText: {
+    marginTop: 12,
     fontSize: 16,
-    fontWeight: '500',
-    color: '#1F2937',
-  },
-  carTypePriceSelected: {
-    color: colors.blue,
+    fontWeight: '700',
   }
 });
 

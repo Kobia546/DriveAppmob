@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   Image,
@@ -10,7 +10,7 @@ import {
   ScrollView,
   Platform,
   KeyboardAvoidingView,
-  ActivityIndicator
+  ActivityIndicator,
 } from 'react-native';
 import { MaterialIcons, AntDesign, FontAwesome } from '@expo/vector-icons';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -18,49 +18,91 @@ import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import Toast from 'react-native-toast-message';
 
-import {
-  auth,
-  db
-} from '../../firebaseConfig';
-import {
-  PhoneAuthProvider,
-  signInWithCredential,
-  createUserWithEmailAndPassword,
-  getIdToken
-} from 'firebase/auth';
+import { auth, db } from '../../firebaseConfig';
+import { createUserWithEmailAndPassword, getIdToken } from 'firebase/auth';
 import LoadingModal from './LoadingModal';
 
 import { doc, setDoc } from 'firebase/firestore';
 import User from '../../user';
-import * as Notifications from 'expo-notifications';
+
+
+
+
+
+
 const VONAGE_API_KEY = '870c797f';
 const VONAGE_API_SECRET = 'qbnoTNmc9SpKlkf8';
 const VONAGE_BRAND_NAME = 'ValetService';
+const sendVerificationEmail = async (email, username, verificationCode) => {
+  try {
+    const BREVO_API_KEY = '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';  // Votre clé API Brevo
 
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': BREVO_API_KEY,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        sender: {
+          name: 'ValetService',
+          email: 'mambochristian2018@gmail.com'
+        },
+        to: [{
+          email: email,
+          name: username
+        }],
+        subject: 'Code de vérification - ValetService',
+        htmlContent: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background-color: #1b5988; color: white; padding: 20px; text-align: center;">
+              <h1>🚗 Validation de votre compte ValetService</h1>
+            </div>
+            <div style="padding: 20px;">
+              <h2>Bonjour ${username},</h2>
+              <p>Voici votre code de vérification pour activer votre compte ValetService :</p>
+              <div style="background-color: #f8f9fa; padding: 20px; text-align: center; font-size: 32px; font-weight: bold; margin: 20px 0; color: #1b5988; border: 2px dashed #1b5988; border-radius: 5px;">
+                ${verificationCode}
+              </div>
+              <p><strong>Ce code est valable pendant 10 minutes.</strong></p>
+              <p>Si vous n'avez pas créé de compte sur ValetService, veuillez ignorer cet email.</p>
+            </div>
+            <div style="text-align: center; margin-top: 20px; color: #666; font-size: 12px;">
+              <p>© 2024 ValetService - Tous droits réservés</p>
+            </div>
+          </div>
+        `
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || "Erreur lors de l'envoi de l'email");
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Erreur envoi email:', error);
+    throw new Error("Échec de l'envoi de l'email");
+  }
+};
 const formatPhoneNumber = (phone) => {
-  // Enlever tous les caractères non numériques
   const cleaned = phone.replace(/\D/g, '');
-  
-  // Si le numéro commence par 225, on le garde
   if (cleaned.startsWith('225')) {
     return '+' + cleaned;
   }
-  
-  // Si le numéro commence par 0, on l'enlève avant d'ajouter 225
   if (cleaned.startsWith('0')) {
     return '+225' + cleaned.substring(1);
   }
-  
-  // Sinon on ajoute simplement 225
   return '+225' + cleaned;
 };
+
 const Register = () => {
-  const recaptchaVerifier = React.useRef(null);
   const [authMethod, setAuthMethod] = useState('phone');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [verificationId, setVerificationId] = useState('');
-  const [verificationRequestId, setVerificationRequestId] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
+  const [verificationRequestId, setVerificationRequestId] = useState('');
   const [verificationSent, setVerificationSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
@@ -69,19 +111,19 @@ const Register = () => {
   const [username, setUsername] = useState('');
   const [cars, setCars] = useState([{ carType: '', carPhoto: null }]);
   const navigation = useNavigation();
-  
+
   const showToast = (type, text1, text2) => {
     Toast.show({
       type,
       position: 'bottom',
       text1,
       text2,
-      visibilityTime: 3000
+      visibilityTime: 3000,
     });
   };
- 
+
   const generateVerificationCode = () => {
-    return Math.floor(100000 + Math.random() * 900000).toString(); // Code à 6 chiffres
+    return Math.floor(100000 + Math.random() * 900000).toString();
   };
 
   const handleSendVerificationCode = async () => {
@@ -104,17 +146,14 @@ const Register = () => {
 
       const data = await response.json();
       if (data.messages[0].status === '0') {
-        console.log('SMS envoyé avec succès');
         setVerificationRequestId(code);
         setVerificationSent(true);
-        showToast('success', 'Succès', 'Code de vérification envoyé');
+        showToast('success', 'Succès', 'Le code de vérification a été envoyé à votre numéro.');
       } else {
-        console.error('Erreur SMS:', data.messages[0]['error-text']);
-        showToast('error', 'Erreur', `Erreur lors de l'envoi du code: ${data.messages[0]['error-text']}`);
+        showToast('error', 'Erreur', `Échec de l'envoi du code : ${data.messages[0]['error-text']}`);
       }
     } catch (error) {
-      console.error('Erreur envoi SMS:', error);
-      showToast('error', 'Erreur', "Erreur lors de l'envoi du code: " + error.message);
+      showToast('error', 'Erreur', "Une erreur s'est produite lors de l'envoi du code.");
     } finally {
       setLoading(false);
     }
@@ -122,14 +161,12 @@ const Register = () => {
 
   const verifyCode = () => {
     if (verificationCode === verificationRequestId) {
-      console.log('Code vérifié avec succès');
-      showToast('success', 'Succès', 'Vérification réussie');
-      // Procédez à la suite de votre logique d'authentification
+      showToast('success', 'Succès', 'Votre code a été vérifié avec succès.');
     } else {
-      console.log('Code incorrect');
-      showToast('error', 'Erreur', 'Code de vérification incorrect');
+      showToast('error', 'Erreur', 'Le code de vérification est incorrect.');
     }
   };
+
   const handlePickImage = async (index) => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -145,7 +182,7 @@ const Register = () => {
         setCars(updatedCars);
       }
     } catch (error) {
-      showToast('error', 'Erreur', "Erreur lors de la sélection de l'image");
+      showToast('error', 'Erreur', "Erreur lors de la sélection de l'image.");
     }
   };
 
@@ -163,7 +200,7 @@ const Register = () => {
     if (cars.length > 1) {
       setCars(cars.filter((_, i) => i !== index));
     } else {
-      showToast('error', 'Erreur', 'Vous devez avoir au moins un véhicule');
+      showToast('error', 'Erreur', 'Vous devez avoir au moins un véhicule.');
     }
   };
 
@@ -174,8 +211,7 @@ const Register = () => {
       const storage = getStorage();
       const storageRef = ref(storage, `users/${userId}/cars/car_${carIndex}.jpg`);
       await uploadBytes(storageRef, blob);
-      const downloadURL = await getDownloadURL(storageRef);
-      return downloadURL;
+      return await getDownloadURL(storageRef);
     } catch (error) {
       console.error("Erreur d'upload de l'image:", error);
       return null;
@@ -184,69 +220,88 @@ const Register = () => {
 
   const validateForm = () => {
     if (!username.trim()) {
-      showToast('error', 'Erreur', "Le nom d'utilisateur est requis");
+      showToast('error', 'Erreur', "Le nom d'utilisateur est requis.");
       return false;
     }
 
-    if (cars.some(car => !car.carType)) {
-      showToast('error', 'Erreur', 'Veuillez sélectionner un type pour chaque véhicule');
+    if (cars.some((car) => !car.carType)) {
+      showToast('error', 'Erreur', 'Veuillez sélectionner un type pour chaque véhicule.');
       return false;
     }
 
-    if (cars.some(car => !car.carPhoto)) {
-      showToast('error', 'Erreur', 'Veuillez ajouter une photo pour chaque véhicule');
+    if (cars.some((car) => !car.carPhoto)) {
+      showToast('error', 'Erreur', 'Veuillez ajouter une photo pour chaque véhicule.');
       return false;
     }
 
     if (authMethod === 'email') {
       if (!email.trim() || !password || !confirmPassword) {
-        showToast('error', 'Erreur', 'Tous les champs sont requis');
+        showToast('error', 'Erreur', 'Tous les champs sont requis.');
         return false;
       }
       if (password !== confirmPassword) {
-        showToast('error', 'Erreur', 'Les mots de passe ne correspondent pas');
+        showToast('error', 'Erreur', 'Les mots de passe ne correspondent pas.');
         return false;
       }
       if (password.length < 6) {
-        showToast('error', 'Erreur', 'Le mot de passe doit contenir au moins 6 caractères');
+        showToast('error', 'Erreur', 'Le mot de passe doit contenir au moins 6 caractères.');
         return false;
       }
     }
 
     return true;
   };
-
-  const handleRegister = async () =>  {
+  const handleRegister = async () => {
     if (!validateForm()) return;
   
     try {
       setLoading(true);
       let userId;
+      let userContact;
   
       if (authMethod === 'phone') {
         if (!verificationRequestId || !verificationCode) {
-          showToast('error', 'Erreur', 'Veuillez compléter la vérification du téléphone');
+          showToast('error', 'Erreur', 'Veuillez compléter la vérification du téléphone.');
           return;
         }
-
-        // Vérifier le code
+  
         await verifyCode();
-        
-        // Créer un utilisateur Firebase sans authentification par téléphone
+  
         const tempEmail = `${phoneNumber.replace(/[^0-9]/g, '')}@temp.com`;
         const tempPassword = Math.random().toString(36).slice(-8);
-        
-        const userCredential = await createUserWithEmailAndPassword(
-          auth,
-          tempEmail,
-          tempPassword
-        );
+  
+        const userCredential = await createUserWithEmailAndPassword(auth, tempEmail, tempPassword);
         userId = userCredential.user.uid;
         userContact = phoneNumber;
-      }  else {
+      } else {
+        // Vérification email
+        if (!verificationSent) {
+          // Première étape : envoi du code de vérification
+          const verificationCode = generateVerificationCode();
+          setVerificationRequestId(verificationCode);
+          
+          try {
+            await sendVerificationEmail(email, username, verificationCode);
+            setVerificationSent(true);
+            showToast('success', 'Succès', 'Le code de vérification a été envoyé à votre email.');
+            setLoading(false);
+            return;
+          } catch (emailError) {
+            throw new Error("Erreur lors de l'envoi de l'email de vérification");
+          }
+        }
+  
+        // Vérification du code
+        if (verificationCode !== verificationRequestId) {
+          showToast('error', 'Erreur', 'Code de vérification incorrect');
+          setLoading(false);
+          return;
+        }
+  
+        // Si le code est correct, création du compte
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         userId = userCredential.user.uid;
-        userContact = email; // L'email sera stocké
+        userContact = email;
       }
   
       const token = await getIdToken(auth.currentUser);
@@ -256,44 +311,41 @@ const Register = () => {
           const carPhotoURL = car.carPhoto ? await uploadImage(car.carPhoto, userId, index) : null;
           return {
             carType: car.carType,
-            carPhoto: carPhotoURL
+            carPhoto: carPhotoURL,
           };
         })
       );
   
-      const newUser = new User(
-        userId,
-        userContact, // Ceci sera soit l'email soit le numéro de téléphone
-        username,
-        carData,
-        token
-      );
-  
+      const newUser = new User(userId, userContact, username, carData, token);
       await setDoc(doc(db, 'users', userId), newUser.toFirestore());
-      showToast('success', 'Succès', 'Inscription réussie');
+  
+      showToast('success', 'Succès', 'Votre inscription a été effectuée avec succès.');
       navigation.navigate('HomeScreen');
     } catch (error) {
-      console.error('Erreur:', error);
-      showToast('error', 'Erreur', error.message);
+      showToast('error', 'Erreur', `Échec de l'inscription : ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
+  const SelectedCar = ({ car, index }) => {
+    return (
+      <View style={styles.selectedCarContainer}>
+        <Text style={styles.selectedCarTitle}>Véhicule {index + 1}</Text>
+        <View style={styles.selectedCarContent}>
+          <Text style={styles.selectedCarType}>Type: {car.carType}</Text>
+          {car.carPhoto && (
+            <Image source={{ uri: car.carPhoto }} style={styles.selectedCarImage} resizeMode="cover" />
+          )}
+        </View>
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-    
-      
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-      >
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          <Image 
-            style={styles.logo} 
-            source={require('../../assets/Logo.png')} 
-            resizeMode="contain"
-          />
-          
+          <Image style={styles.logo} source={require('../../assets/Logo.png')} resizeMode="contain" />
           <Text style={styles.title}>Inscription Client</Text>
 
           <View style={styles.authMethodContainer}>
@@ -326,16 +378,8 @@ const Register = () => {
               </View>
 
               {!verificationSent ? (
-                <Pressable 
-                  onPress={handleSendVerificationCode} 
-                  style={styles.verificationButton}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <ActivityIndicator color="white" />
-                  ) : (
-                    <Text style={styles.buttonText}>Envoyer le code</Text>
-                  )}
+                <Pressable onPress={handleSendVerificationCode} style={styles.verificationButton} disabled={loading}>
+                  {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Envoyer le code</Text>}
                 </Pressable>
               ) : (
                 <View style={styles.inputContainer}>
@@ -361,8 +405,21 @@ const Register = () => {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   style={styles.inputField}
+                  editable={!verificationSent}
                 />
               </View>
+              {verificationSent && (
+            <View style={styles.inputContainer}>
+              <MaterialIcons name="verified-user" size={24} color="gray" />
+              <TextInput
+                value={verificationCode}
+                onChangeText={setVerificationCode}
+                placeholder="Code de vérification"
+                keyboardType="number-pad"
+                style={styles.inputField}
+              />
+            </View>
+          )}
 
               <View style={styles.inputContainer}>
                 <AntDesign name="lock" size={24} color="gray" />
@@ -403,10 +460,7 @@ const Register = () => {
               <Text style={styles.carTitle}>Véhicule {index + 1}</Text>
 
               {cars.length > 1 && (
-                <Pressable
-                  onPress={() => handleRemoveCar(index)}
-                  style={styles.crossButton}
-                >
+                <Pressable onPress={() => handleRemoveCar(index)} style={styles.crossButton}>
                   <FontAwesome name="close" size={24} color="gray" />
                 </Pressable>
               )}
@@ -416,62 +470,44 @@ const Register = () => {
                   <Pressable
                     key={type}
                     onPress={() => handleCarTypeChange(index, type)}
-                    style={[
-                      styles.toggleButton,
-                      car.carType === type && styles.selected
-                    ]}
+                    style={[styles.toggleButton, car.carType === type && styles.selected]}
                   >
-                    <Text style={[
-                      styles.toggleButtonText,
-                      car.carType === type && styles.selectedText
-                    ]}>
-                      {type}
-                    </Text>
+                    <Text style={[styles.toggleButtonText, car.carType === type && styles.selectedText]}>{type}</Text>
                   </Pressable>
                 ))}
               </View>
 
-              <Pressable
-                onPress={() => handlePickImage(index)}
-                style={styles.photoButton}
-              >
+              <Pressable onPress={() => handlePickImage(index)} style={styles.photoButton}>
                 <Text style={styles.photoButtonText}>
                   {car.carPhoto ? 'Photo sélectionnée' : 'Ajouter une photo'}
                 </Text>
               </Pressable>
-              </View>
+            </View>
           ))}
 
           <Pressable onPress={handleAddCar} style={styles.addButton}>
             <Text style={styles.addButtonText}>+ Ajouter un véhicule</Text>
           </Pressable>
 
-          <Pressable 
-            onPress={handleRegister} 
-            style={styles.registerButton}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="white" />
-            ) : (
-              <Text style={styles.registerButtonText}>S'inscrire</Text>
-               
-            )}
+          {/* Section des voitures sélectionnées */}
+          <View style={styles.selectedCarsSection}>
+            <Text style={styles.selectedCarsTitle}>Vos véhicules sélectionnés</Text>
+            {cars.map((car, index) => (
+              <SelectedCar key={index} car={car} index={index} />
+            ))}
+          </View>
+
+          <Pressable onPress={handleRegister} style={styles.registerButton} disabled={loading}>
+            {loading ? <ActivityIndicator color="white" /> : <Text style={styles.registerButtonText}>S'inscrire</Text>}
           </Pressable>
-         <Pressable onPress={() => navigation.navigate('DriverRegister')} style={styles.registerLink}>
-                 <Text style={styles.registerText}>
-                   Je suis chauffeur
-                 </Text>
-               </Pressable>
+
+          <Pressable onPress={() => navigation.navigate('DriverRegister')} style={styles.registerLink}>
+            <Text style={styles.registerText}>Je suis chauffeur</Text>
+          </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
-      <LoadingModal 
-      visible={loading} 
-      message={
-        
-        "Création de votre compte client..."
-      }
-    />
+
+      <LoadingModal visible={loading} message="Création de votre compte client..." />
       <Toast ref={(ref) => Toast.setRef(ref)} />
     </SafeAreaView>
   );
@@ -602,6 +638,50 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  selectedCarsSection: {
+    width: '90%',
+    marginTop: 20,
+    marginBottom: 10,
+    padding: 15,
+    backgroundColor: '#F8F8F8',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  selectedCarsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    color: '#1b5988',
+  },
+  selectedCarContainer: {
+    marginBottom: 15,
+    padding: 10,
+    backgroundColor: 'white',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  selectedCarTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 5,
+    color: '#1b5988',
+  },
+  selectedCarContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  selectedCarType: {
+    fontSize: 14,
+    color: '#555',
+  },
+  selectedCarImage: {
+    width: 80,
+    height: 60,
+    borderRadius: 8,
+  },
   registerButton: {
     backgroundColor: '#1b5988',
     padding: 15,
@@ -615,7 +695,7 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 8,
     width: '90%',
-    marginTop:'2%',
+    marginTop: '2%',
     alignItems: 'center',
   },
   registerText: {

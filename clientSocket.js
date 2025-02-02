@@ -140,6 +140,7 @@ class SocketService {
       });
     });
   }
+  
   sendNewOrder(orderData) {
     return new Promise((resolve, reject) => {
       if (!this.socket || !this.isConnected) {
@@ -177,7 +178,7 @@ class SocketService {
     }
 
     try {
-      // Supprimer les anciens listeners pour éviter les doublons
+     
       this.socket.off('order:available');
       
       this.socket.on('order:available', (orderData) => {
@@ -207,6 +208,8 @@ class SocketService {
         this.socket.once('order:accept:confirmation', (confirmation) => {
           clearTimeout(timeout);
           console.log('Confirmation acceptation commande:', confirmation);
+
+          
           
           if (confirmation.status === 'success') {
             resolve(confirmation);
@@ -240,5 +243,6 @@ class SocketService {
     });
   }
 }
+
 
 export const socketService = new SocketService();

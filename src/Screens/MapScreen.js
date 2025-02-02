@@ -13,7 +13,7 @@ import { Icon } from 'react-native-elements';
 import axios from 'axios';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
-
+import VehicleInspectionChecklist from './VehicleInspectionChecklist ';
 const { width, height } = Dimensions.get('window');
 const ASPECT_RATIO = width / height;
 const LATITUDE_DELTA = 0.0922;
@@ -25,6 +25,7 @@ const MapsScreen = ({ route, navigation }) => {
   const [currentLocation, setCurrentLocation] = useState(null);
   const [ridePhase, setRidePhase] = useState('TO_PICKUP');
   const [routeInfo, setRouteInfo] = useState(null);
+  const [showInspection, setShowInspection] = useState(false);
   const mapRef = useRef(null);
   const locationInterval = useRef(null);
 
@@ -65,6 +66,11 @@ const MapsScreen = ({ route, navigation }) => {
       );
     }
   };
+  useEffect(() => {
+    if (ridePhase === 'TO_PICKUP') {
+      setShowInspection(true);
+    }
+  }, [ridePhase]);
 
   useEffect(() => {
     // Obtenir la position initiale
@@ -115,20 +121,21 @@ const MapsScreen = ({ route, navigation }) => {
       const confirmed = await new Promise((resolve) => {
         Alert.alert(
           'Confirmation',
-          'Avez-vous récupéré le client ?',
+          'Avez-vous récupéré la voiture ?',
           [
             { text: 'Non', onPress: () => resolve(false), style: 'cancel' },
             { text: 'Oui', onPress: () => resolve(true) }
           ]
         );
       });
-
+  
       if (confirmed) {
         const orderRef = doc(db, 'orders', orderDetails.id);
         await updateDoc(orderRef, {
           status: 'inProgress',
           pickupTime: new Date()
         });
+        setShowInspection(false); // Cacher l'inspection après confirmation
         setRidePhase('IN_PROGRESS');
       }
     } catch (error) {
@@ -138,6 +145,7 @@ const MapsScreen = ({ route, navigation }) => {
   };
 
   const handleRideCompletion = async () => {
+    setShowInspection(true);
     try {
       const confirmed = await new Promise((resolve) => {
         Alert.alert(
@@ -157,7 +165,7 @@ const MapsScreen = ({ route, navigation }) => {
           completionTime: new Date()
         });
         Alert.alert('Succès', 'Course terminée avec succès !');
-        navigation.navigate('DriverHome');
+        navigation.navigate('Driver');
       }
     } catch (error) {
       console.error('Erreur lors de la finalisation:', error);
@@ -240,7 +248,7 @@ const MapsScreen = ({ route, navigation }) => {
       <View style={styles.infoPanel}>
         <View style={styles.phaseIndicator}>
           <Text style={styles.phaseText}>
-            {ridePhase === 'TO_PICKUP' ? 'En route vers le client' : 'Course en cours'}
+            {ridePhase === 'TO_PICKUP' ? 'En route pour recuperer la voiture' : 'Course en cours'}
           </Text>
         </View>
 
@@ -264,10 +272,35 @@ const MapsScreen = ({ route, navigation }) => {
           onPress={ridePhase === 'TO_PICKUP' ? handleClientPickup : handleRideCompletion}
         >
           <Text style={styles.actionButtonText}>
-            {ridePhase === 'TO_PICKUP' ? 'Client récupéré' : 'Terminer la course'}
+            {ridePhase === 'TO_PICKUP' ? 'Voiture recupérée ' : 'Terminer la course'}
           </Text>
         </TouchableOpacity>
       </View>
+      {showInspection && (
+  <VehicleInspectionChecklist
+    orderId={orderDetails.id}
+    isDriver={ridePhase === 'TO_PICKUP'}
+    onComplete={async () => {
+      setShowInspection(false);
+      if (ridePhase === 'TO_PICKUP') {
+        const orderRef = doc(db, 'orders', orderDetails.id);
+        await updateDoc(orderRef, {
+          status: 'inProgress',
+          pickupTime: new Date()
+        });
+        setRidePhase('IN_PROGRESS');
+      } else {
+        const orderRef = doc(db, 'orders', orderDetails.id);
+        await updateDoc(orderRef, {
+          status: 'completed',
+          completionTime: new Date()
+        });
+        Alert.alert('Succès', 'Course terminée avec succès !');
+        navigation.navigate('Driver');
+      }
+    }}
+  />
+)}
     </View>
   );
 };
