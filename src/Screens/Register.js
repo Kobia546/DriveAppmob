@@ -24,6 +24,8 @@ import LoadingModal from './LoadingModal';
 
 import { doc, setDoc } from 'firebase/firestore';
 import User from '../../user';
+import { apiKeys } from '../../config/keys';
+
 
 
 
@@ -35,13 +37,13 @@ const VONAGE_API_SECRET = 'qbnoTNmc9SpKlkf8';
 const VONAGE_BRAND_NAME = 'ValetService';
 const sendVerificationEmail = async (email, username, verificationCode) => {
   try {
-    const BREVO_API_KEY = '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';  // Votre clé API Brevo
+   
 
     const response = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
         'accept': 'application/json',
-        'api-key': BREVO_API_KEY,
+        'api-key': apiKeys.brevo,
         'content-type': 'application/json',
       },
       body: JSON.stringify({
