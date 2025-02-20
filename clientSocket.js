@@ -4,8 +4,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 class SocketService {
   constructor() {
     this.socket = null;
-    // this.serverUrl = 'https://driverappmobile.onrender.com';
-    this.serverUrl = 'http://192.168.66.71:3000';
+     this.serverUrl = 'https://driverappmobile.onrender.com';
+    
     this.isConnected = false;
     this.currentDriverId = null;
     this.connectionState = {
