@@ -1,248 +1,371 @@
 import { io } from 'socket.io-client';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 class SocketService {
   constructor() {
     this.socket = null;
-    this.serverUrl = 'https://driverappmobile.onrender.com';
-
-    
+    // this.serverUrl = 'https://driverappmobile.onrender.com';
+    this.serverUrl = 'http://192.168.66.71:3000';
     this.isConnected = false;
-    this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 5;
-    this.connectionTimeout = null;
-    this.pingInterval = null;
+    this.currentDriverId = null;
+    this.connectionState = {
+      isAuthenticated: false,
+      lastAuthTime: null,
+      reconnectCount: 0
+    };
+    this.heartbeatInterval = null;
+    this.authenticationPromise = null;
+    
+    // Configuration de stockage local
+    this.storage = {
+      setItem: async (key, value) => {
+        try {
+          await AsyncStorage.setItem(key, JSON.stringify(value));
+        } catch (e) {
+          console.error('[Storage] Erreur:', e);
+        }
+      },
+      getItem: async (key) => {
+        try {
+          const item = await AsyncStorage.getItem(key);
+          return item ? JSON.parse(item) : null;
+        } catch (e) {
+          console.error('[Storage] Erreur:', e);
+          return null;
+        }
+      },
+      removeItem: async (key) => {
+        try {
+          await AsyncStorage.removeItem(key);
+        } catch (e) {
+          console.error('[Storage] Erreur:', e);
+        }
+      }
+    };
+
+    // Liaison des méthodes
+    this.handleSocketEvents = this.handleSocketEvents.bind(this);
+    this.reconnect = this.reconnect.bind(this);
+  }
+
+  async initialize() {
+    console.log('[SocketService] Initialisation...');
+    
+    try {
+      // Restauration de l'état précédent
+      const savedState = await this.storage.getItem('driverState');
+      if (savedState && savedState.driverId) {
+        this.currentDriverId = savedState.driverId;
+        this.connectionState.lastAuthTime = savedState.lastAuthTime;
+        
+        // Tentative de reconnexion automatique
+        await this.connect();
+        if (this.currentDriverId) {
+          await this.authenticateDriver(this.currentDriverId);
+        }
+      }
+    } catch (error) {
+      console.error('[SocketService] Erreur initialisation:', error);
+      throw error;
+    }
   }
 
   async connect() {
+    console.log('[SocketService] Tentative de connexion...');
+    
     if (this.socket && this.isConnected) {
-      console.log('Socket déjà connecté');
+      console.log('[SocketService] Déjà connecté');
       return true;
     }
 
     return new Promise((resolve, reject) => {
       try {
+        // Configuration du socket
         this.socket = io(this.serverUrl, {
           transports: ['polling', 'websocket'],
           upgrade: true,
           reconnection: true,
-          reconnectionAttempts: this.maxReconnectAttempts,
+          reconnectionAttempts: 5,
           reconnectionDelay: 1000,
           timeout: 20000,
           forceNew: true,
+          auth: {
+            driverId: this.currentDriverId
+          },
           query: {
             timestamp: Date.now(),
             version: '1.0.0',
-            platform: 'mobile'
+            platform: 'mobile',
+            driverId: this.currentDriverId
           }
         });
 
-        // Timeout de connexion
-        this.connectionTimeout = setTimeout(() => {
-          if (!this.isConnected) {
-            console.error('Timeout de connexion');
-            this.socket.disconnect();
-            reject(new Error('Connection timeout'));
-          }
-        }, 15000);
-
-        this.socket.on('connect', () => {
-          console.log('Connecté au serveur WebSocket:', this.socket.id);
-          this.isConnected = true;
-          this.reconnectAttempts = 0;
-          clearTimeout(this.connectionTimeout);
-          resolve(true);
-
-          // Démarrer le ping manuel
-          this.startPing();
-        });
-
-        this.socket.on('connect_error', (error) => {
-          console.error('Erreur de connexion WebSocket:', error.message);
-          this.isConnected = false;
-          this.reconnectAttempts++;
-          
-          if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-            reject(new Error('Max reconnection attempts reached'));
-          }
-        });
-
-        this.socket.on('disconnect', (reason) => {
-          console.log('Déconnecté du serveur WebSocket:', reason);
-          this.isConnected = false;
-          this.stopPing();
-
-          if (reason === 'io server disconnect') {
-            this.socket.connect();
-          }
-        });
-
-        this.socket.on('error', (error) => {
-          console.error('Erreur WebSocket:', error);
-        });
-
-        // Logging de tous les événements
-        this.socket.onAny((eventName, ...args) => {
-          console.log(`Événement reçu: ${eventName}`, args);
-        });
+        // Configuration des événements socket
+        this.handleSocketEvents(resolve, reject);
 
       } catch (error) {
-        console.error('Erreur initialisation socket:', error);
+        console.error('[SocketService] Erreur connexion:', error);
         reject(error);
       }
     });
   }
 
-  startPing() {
-    this.pingInterval = setInterval(() => {
-      if (this.isConnected) {
-        this.socket.emit('ping');
+  handleSocketEvents(resolve, reject) {
+    // Événement de connexion réussie
+    this.socket.on('connect', async () => {
+      console.log('[SocketService] Connecté:', this.socket.id);
+      this.isConnected = true;
+      this.connectionState.reconnectCount = 0;
+      
+      if (this.currentDriverId && !this.connectionState.isAuthenticated) {
+        try {
+          await this.authenticateDriver(this.currentDriverId);
+        } catch (error) {
+          console.error('[SocketService] Erreur réauthentification:', error);
+        }
+      }
+      
+      resolve(true);
+      this.startHeartbeat();
+    });
+
+    // Gestion des erreurs de connexion
+    this.socket.on('connect_error', (error) => {
+      console.error('[SocketService] Erreur connexion:', error);
+      this.isConnected = false;
+      this.connectionState.reconnectCount++;
+      
+      if (this.connectionState.reconnectCount >= 5) {
+        reject(new Error('Nombre maximum de tentatives atteint'));
+      }
+    });
+
+    // Gestion des déconnexions
+    this.socket.on('disconnect', async (reason) => {
+      console.log('[SocketService] Déconnexion:', reason);
+      this.isConnected = false;
+      this.stopHeartbeat();
+
+      if (reason === 'io server disconnect' || reason === 'transport close') {
+        await this.reconnect();
+      }
+    });
+
+    // Gestion de l'expiration de session
+    this.socket.on('driver:session:expired', async (data) => {
+      console.log('[SocketService] Session expirée:', data);
+      this.connectionState.isAuthenticated = false;
+      
+      if (data.reason === 'new_session') {
+        // Une nouvelle session a été ouverte ailleurs
+        await this.disconnect(true);
+      } else if (data.reason === 'inactivity') {
+        // Session expirée pour inactivité
+        await this.reconnect();
+      }
+    });
+
+    // Monitoring des événements
+    this.socket.onAny((eventName, ...args) => {
+      console.log(`[SocketService] Événement reçu: ${eventName}`, args);
+    });
+  }
+
+  async authenticateDriver(driverId) {
+    console.log('[SocketService] Authentification chauffeur:', driverId);
+    
+    // Vérification de l'état de connexion
+    if (!this.socket || !this.isConnected) {
+      await this.connect();
+    }
+
+    // Une seule tentative d'authentification à la fois
+    if (this.authenticationPromise) {
+      return this.authenticationPromise;
+    }
+
+    this.authenticationPromise = new Promise((resolve, reject) => {
+      const authTimeout = setTimeout(() => {
+        this.authenticationPromise = null;
+        reject(new Error('Timeout authentification'));
+      }, 10000);
+
+      this.socket.emit('driver:connect', {
+        driverId,
+        timestamp: Date.now(),
+        reconnect: this.connectionState.reconnectCount > 0
+      });
+
+      this.socket.once('driver:connect:confirmation', async (response) => {
+        clearTimeout(authTimeout);
+        this.authenticationPromise = null;
+        
+        if (response.status === 'success') {
+          this.currentDriverId = driverId;
+          this.connectionState.isAuthenticated = true;
+          this.connectionState.lastAuthTime = Date.now();
+          
+          // Sauvegarde de l'état
+          await this.storage.setItem('driverState', {
+            driverId: this.currentDriverId,
+            lastAuthTime: this.connectionState.lastAuthTime
+          });
+
+          console.log('[SocketService] Authentification réussie');
+          resolve(response);
+        } else {
+          console.error('[SocketService] Échec authentification:', response.error);
+          reject(new Error(response.error));
+        }
+      });
+    });
+
+    return this.authenticationPromise;
+  }
+
+  startHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+    }
+
+    this.heartbeatInterval = setInterval(() => {
+      if (this.isConnected && this.connectionState.isAuthenticated) {
+        this.socket.emit('ping', {
+          driverId: this.currentDriverId,
+          timestamp: Date.now()
+        });
       }
     }, 25000);
   }
 
-  stopPing() {
-    if (this.pingInterval) {
-      clearInterval(this.pingInterval);
-      this.pingInterval = null;
+  stopHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
     }
   }
 
-  async connectAsDriver(driverId) {
-    console.log('[Driver Connect] Démarrage de la connexion pour le chauffeur:', driverId);
+  async reconnect() {
+    console.log('[SocketService] Tentative de reconnexion...');
     
-    if (!this.socket || !this.isConnected) {
-      await this.connect();
+    try {
+      if (this.currentDriverId) {
+        await this.connect();
+        await this.authenticateDriver(this.currentDriverId);
+      }
+    } catch (error) {
+      console.error('[SocketService] Échec reconnexion:', error);
+      throw error;
     }
-  
-    return new Promise((resolve, reject) => {
-      // Ajout d'un log pour confirmer l'envoi
-      console.log('[Driver Connect] Émission de driver:connect avec ID:', driverId);
+  }
+
+  async disconnect(clearState = false) {
+    console.log('[SocketService] Déconnexion...');
+    
+    try {
+      this.stopHeartbeat();
       
-      this.socket.emit('driver:connect', driverId);
-  
-      const timeout = setTimeout(() => {
-        console.log('[Driver Connect] Timeout de la confirmation');
-        reject(new Error('Driver connection timeout'));
-      }, 10000);
-  
-      // Écouteur de confirmation
-      this.socket.once('driver:connect:confirmation', (response) => {
-        clearTimeout(timeout);
-        console.log('[Driver Connect] Réponse reçue:', response);
-  
-        if (response.status === 'success') {
-          console.log('[Driver Connect] Connexion réussie');
-          resolve(response);
-        } else {
-          console.log('[Driver Connect] Échec de la connexion:', response.error);
-          reject(new Error(response.error || 'Connection failed'));
-        }
-      });
-    });
-  }
-  
-  sendNewOrder(orderData) {
-    return new Promise((resolve, reject) => {
-      if (!this.socket || !this.isConnected) {
-        reject(new Error('Socket non connecté'));
-        return;
+      if (this.socket) {
+        this.socket.disconnect();
       }
-    
-      try {
-        console.log('Envoi nouvelle commande:', orderData);
-        this.socket.emit('new:order', orderData);
-    
-        const timeout = setTimeout(() => {
-          reject(new Error('Order confirmation timeout'));
-        }, 10000);
-    
-        this.socket.once('order:sent:confirmation', (confirmation) => {
-          clearTimeout(timeout);
-          console.log('Confirmation envoi commande:', confirmation);
-          
-          if (confirmation.status === 'success') {
-            resolve(confirmation);
-          } else {
-            reject(new Error(confirmation.error || 'Failed to send order'));
-          }
-        });
-      } catch (error) {
-        reject(error);
+      
+      this.isConnected = false;
+      this.connectionState.isAuthenticated = false;
+      
+      if (clearState) {
+        await this.storage.removeItem('driverState');
+        this.currentDriverId = null;
       }
-    });
+      
+      return true;
+    } catch (error) {
+      console.error('[SocketService] Erreur déconnexion:', error);
+      return false;
+    }
   }
+
+  // Gestion des commandes
   onNewOrder(callback) {
     if (!this.socket) {
-      console.error('Impossible d\'écouter les nouvelles commandes: Socket non connecté');
+      console.error('[SocketService] Socket non connecté');
       return;
     }
 
-    try {
-     
-      this.socket.off('order:available');
-      
-      this.socket.on('order:available', (orderData) => {
-        console.log('Nouvelle commande reçue:', orderData);
-        callback(orderData);
-      });
-    } catch (error) {
-      console.error('Erreur configuration listener commandes:', error);
-    }
+    this.socket.off('order:available');
+    this.socket.on('order:available', (orderData) => {
+      console.log('[SocketService] Nouvelle commande:', orderData);
+      callback(orderData);
+    });
   }
 
-  acceptOrder(orderId, driverId, clientId, driverInfo) {
+  async sendNewOrder(orderData) {
     return new Promise((resolve, reject) => {
       if (!this.socket || !this.isConnected) {
         reject(new Error('Socket non connecté'));
         return;
       }
 
-      try {
-        console.log('Acceptation commande:', { orderId, driverId, clientId, driverInfo });
-        this.socket.emit('order:accept', { orderId, driverId, clientId, driverInfo });
+      const timeout = setTimeout(() => {
+        reject(new Error('Timeout envoi commande'));
+      }, 10000);
 
-        const timeout = setTimeout(() => {
-          reject(new Error('Order acceptance confirmation timeout'));
-        }, 10000);
+      this.socket.emit('new:order', orderData);
 
-        this.socket.once('order:accept:confirmation', (confirmation) => {
-          clearTimeout(timeout);
-          console.log('Confirmation acceptation commande:', confirmation);
-
-          
-          
-          if (confirmation.status === 'success') {
-            resolve(confirmation);
-          } else {
-            reject(new Error(confirmation.error || 'Failed to accept order'));
-          }
-        });
-      } catch (error) {
-        reject(error);
-      }
+      this.socket.once('order:sent:confirmation', (confirmation) => {
+        clearTimeout(timeout);
+        
+        if (confirmation.status === 'success') {
+          resolve(confirmation);
+        } else {
+          reject(new Error(confirmation.error || 'Échec envoi commande'));
+        }
+      });
     });
   }
 
-  disconnect() {
-    return new Promise((resolve) => {
-      if (this.socket) {
-        try {
-          this.stopPing();
-          this.socket.disconnect();
-          this.isConnected = false;
-          this.socket = null;
-          console.log('Déconnecté du serveur WebSocket');
-          resolve(true);
-        } catch (error) {
-          console.error('Erreur déconnexion socket:', error);
-          resolve(false);
-        }
-      } else {
-        resolve(true);
+  async acceptOrder(orderId, driverId, clientId, driverInfo) {
+    return new Promise((resolve, reject) => {
+      if (!this.socket || !this.isConnected) {
+        reject(new Error('Socket non connecté'));
+        return;
       }
+
+      const timeout = setTimeout(() => {
+        reject(new Error('Timeout acceptation commande'));
+      }, 10000);
+
+      // Désactiver l'écoute des nouvelles commandes
+      this.socket.off('order:available');
+
+      this.socket.emit('order:accept', {
+        orderId,
+        driverId,
+        clientId,
+        driverInfo
+      });
+
+      this.socket.once('order:accept:confirmation', (confirmation) => {
+        clearTimeout(timeout);
+        
+        if (confirmation.status === 'success') {
+          resolve(confirmation);
+        } else {
+          // Réactiver l'écoute des commandes en cas d'échec
+          this.onNewOrder((orderData) => {
+            console.log('[SocketService] Nouvelle commande:', orderData);
+          });
+          reject(new Error(confirmation.error || 'Échec acceptation commande'));
+        }
+      });
     });
+  }
+
+  // Ajouter une méthode pour réactiver l'écoute des commandes
+  enableOrderListening(callback) {
+    if (this.socket) {
+      this.onNewOrder(callback);
+    }
   }
 }
-
 
 export const socketService = new SocketService();
