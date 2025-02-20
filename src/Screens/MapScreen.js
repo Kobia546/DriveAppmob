@@ -12,7 +12,7 @@ import MapViewDirections from 'react-native-maps-directions';
 import { Icon } from 'react-native-elements';
 import axios from 'axios';
 import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../../firebaseConfig';
+import { db,auth } from '../../firebaseConfig';
 import VehicleInspectionChecklist from './VehicleInspectionChecklist ';
 const { width, height } = Dimensions.get('window');
 const ASPECT_RATIO = width / height;
@@ -157,13 +157,42 @@ const MapsScreen = ({ route, navigation }) => {
           ]
         );
       });
-
+  
       if (confirmed) {
+        const driverId = auth.currentUser.uid;
+        
+        // 1. Mettre à jour le statut de la course
         const orderRef = doc(db, 'orders', orderDetails.id);
         await updateDoc(orderRef, {
           status: 'completed',
           completionTime: new Date()
         });
+  
+        // 2. Mettre à jour le statut du chauffeur
+        const driverRef = doc(db, 'drivers', driverId);
+        await updateDoc(driverRef, {
+          status: 'available',  // Remettre le statut à disponible
+          currentOrderId: null, // Effacer l'ID de la course en cours
+          lastOrderTimestamp: new Date()
+        });
+  
+        // 3. Réactiver l'écoute des nouvelles commandes
+        if (!socketService.socket?.connected) {
+          await socketService.connect();
+        }
+  
+        // 4. Émettre un événement pour informer le serveur que le chauffeur est à nouveau disponible
+        socketService.socket.emit('driver:status:update', {
+          status: 'available',
+          timestamp: new Date().toISOString()
+        });
+  
+        // 5. Réactiver l'écoute des nouvelles commandes
+        socketService.enableOrderListening((orderData) => {
+          console.log('Nouvelle commande disponible:', orderData);
+          // Ici, ajoutez la logique pour gérer l'affichage des nouvelles commandes
+        });
+  
         Alert.alert('Succès', 'Course terminée avec succès !');
         navigation.navigate('Driver');
       }
@@ -172,7 +201,6 @@ const MapsScreen = ({ route, navigation }) => {
       Alert.alert('Erreur', 'Impossible de terminer la course');
     }
   };
-
   if (!currentLocation) {
     return (
       <View style={styles.loadingContainer}>
