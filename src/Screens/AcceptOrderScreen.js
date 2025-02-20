@@ -61,10 +61,8 @@ const AcceptOrderScreen = ({ route, navigation }) => {
         }
     
         try {
-            // 1. Vérifier si le chauffeur n'est pas déjà en course
             const driverRef = doc(db, 'drivers', driverId);
-            
-            await runTransaction(db, async (transaction) => {
+             await runTransaction(db, async (transaction) => {
                 const driverDoc = await transaction.get(driverRef);
                 const orderRef = doc(db, 'orders', orderDetails.id);
                 const orderDoc = await transaction.get(orderRef);
@@ -77,7 +75,7 @@ const AcceptOrderScreen = ({ route, navigation }) => {
                 const driverData = driverDoc.data();
                 
                 // Vérifier le statut du chauffeur
-                if (driverData.status === 'busy' || driverData.currentOrderId) {
+                if (driverData.status === 'busy') {
                     throw new Error("Vous avez déjà une course en cours.");
                 }
     
@@ -99,8 +97,7 @@ const AcceptOrderScreen = ({ route, navigation }) => {
                     lastOrderTimestamp: serverTimestamp()
                 });
             });
-    
-            // Le reste du code de handleAccept reste identique...
+            
             const driverDoc = await getDoc(driverRef);
             const driverData = driverDoc.data();
     
@@ -121,6 +118,7 @@ const AcceptOrderScreen = ({ route, navigation }) => {
                 await socketService.connect();
             }
     
+            // La socket se déconnectera automatiquement des nouvelles commandes
             await socketService.acceptOrder(
                 orderDetails.id,
                 driverId,
@@ -137,6 +135,12 @@ const AcceptOrderScreen = ({ route, navigation }) => {
             });
     
         } catch (error) {
+            // En cas d'erreur, on réactive l'écoute des commandes
+            socketService.enableOrderListening((orderData) => {
+                // Gérer les nouvelles commandes
+                console.log('Nouvelle commande disponible:', orderData);
+            });
+    
             if (error.message.includes("n'est plus disponible") || 
                 error.message.includes("n'existe plus") ||
                 error.message.includes("déjà une course")) {
