@@ -378,6 +378,29 @@ io.on('connection', (socket) => {
       });
     }
   });
+  socket.on('order:cancel', ({ orderId, userId }) => {
+    console.log(`[Socket] Recherche pour la commande ${orderId} annulée par le client ${userId}`);
+    
+    // Si vous avez une Map pour stocker les timeouts des commandes
+    if (activeOrderTimeouts && activeOrderTimeouts.has(orderId)) {
+      clearTimeout(activeOrderTimeouts.get(orderId));
+      activeOrderTimeouts.delete(orderId);
+    }
+    
+    // Informer les chauffeurs que cette commande n'est plus disponible
+    socket.broadcast.emit('order:cancelled', { 
+      orderId,
+      userId,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Confirmation au client
+    socket.emit('order:cancel:confirmation', {
+      status: 'success',
+      orderId,
+      timestamp: new Date().toISOString()
+    });
+  });
 
   // Acceptation de commande
   socket.on('order:accept', ({ orderId, driverId, clientId, driverInfo }) => {
