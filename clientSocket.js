@@ -4,8 +4,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 class SocketService {
   constructor() {
     this.socket = null;
-     this.serverUrl = 'https://driverappmobile.onrender.com';
-    
+    this.serverUrl = 'https://driverappmobile.onrender.com';
+    //this.serverUrl = 'http://172.20.10.2:3000';
     this.isConnected = false;
     this.currentDriverId = null;
     this.connectionState = {
@@ -16,7 +16,7 @@ class SocketService {
     this.heartbeatInterval = null;
     this.authenticationPromise = null;
     
-    // Configuration de stockage local
+   
     this.storage = {
       setItem: async (key, value) => {
         try {
@@ -68,6 +68,35 @@ class SocketService {
       console.error('[SocketService] Erreur initialisation:', error);
       throw error;
     }
+  }
+  async cancelOrder(orderId, userId) {
+    return new Promise((resolve, reject) => {
+      if (!this.socket || !this.isConnected) {
+        reject(new Error('Socket non connecté'));
+        return;
+      }
+  
+      const timeout = setTimeout(() => {
+        reject(new Error('Timeout annulation commande'));
+      }, 10000);
+  
+      this.socket.emit('order:cancel', {
+        orderId,
+        userId,
+        timestamp: Date.now()
+      });
+  
+      this.socket.once('order:cancel:confirmation', (confirmation) => {
+        clearTimeout(timeout);
+        
+        if (confirmation.status === 'success') {
+          console.log('[SocketService] Commande annulée avec succès:', orderId);
+          resolve(confirmation);
+        } else {
+          reject(new Error(confirmation.error || 'Échec annulation commande'));
+        }
+      });
+    });
   }
 
   async connect() {
@@ -135,7 +164,7 @@ class SocketService {
       this.isConnected = false;
       this.connectionState.reconnectCount++;
       
-      if (this.connectionState.reconnectCount >= 5) {
+      if (this.connectionState.reconnectCount >= 1000) {
         reject(new Error('Nombre maximum de tentatives atteint'));
       }
     });
