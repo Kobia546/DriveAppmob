@@ -280,6 +280,7 @@ const io = new Server(httpServer, {
 });
 
 const driversManager = new EnhancedDriversManager();
+const activeOrderTimeouts = new Map();
 
 // Routes de l'API
 app.get('/health', (req, res) => {
@@ -381,27 +382,40 @@ io.on('connection', (socket) => {
   socket.on('order:cancel', ({ orderId, userId }) => {
     console.log(`[Socket] Recherche pour la commande ${orderId} annulée par le client ${userId}`);
     
-    // Si vous avez une Map pour stocker les timeouts des commandes
+    // Check if the timeout exists before trying to clear it
     if (activeOrderTimeouts && activeOrderTimeouts.has(orderId)) {
       clearTimeout(activeOrderTimeouts.get(orderId));
       activeOrderTimeouts.delete(orderId);
     }
     
-    // Informer les chauffeurs que cette commande n'est plus disponible
+    // Inform drivers that this order is no longer available
     socket.broadcast.emit('order:cancelled', { 
       orderId,
       userId,
       timestamp: new Date().toISOString()
     });
     
-    // Confirmation au client
+    // Confirmation to the client
     socket.emit('order:cancel:confirmation', {
       status: 'success',
       orderId,
       timestamp: new Date().toISOString()
     });
-  });
 
+  // const orderTimeout = setTimeout(() => {
+  //   // Handle timeout logic
+  //   io.emit('order:timeout', {
+  //     orderId: orderData.orderId,
+  //     reason: 'no_driver_found',
+  //     timestamp: new Date().toISOString()
+  //   });
+    
+  //   activeOrderTimeouts.delete(orderData.orderId);
+  // }, 60000); // 60 seconds example
+  
+  // activeOrderTimeouts.set(orderData.orderId, orderTimeout);
+});
+ 
   // Acceptation de commande
   socket.on('order:accept', ({ orderId, driverId, clientId, driverInfo }) => {
     try {
