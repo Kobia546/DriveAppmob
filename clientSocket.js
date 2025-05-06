@@ -5,7 +5,7 @@ class SocketService {
   constructor() {
     this.socket = null;
     this.serverUrl = 'https://driverappmobile.onrender.com';
-    //this.serverUrl = 'http://172.20.10.2:3000';
+    //this.serverUrl = 'http://192.168.80.15:3000';
     this.isConnected = false;
     this.currentDriverId = null;
     this.connectionState = {
@@ -164,7 +164,7 @@ class SocketService {
       this.isConnected = false;
       this.connectionState.reconnectCount++;
       
-      if (this.connectionState.reconnectCount >= 1000) {
+      if (this.connectionState.reconnectCount >= 5) {
         reject(new Error('Nombre maximum de tentatives atteint'));
       }
     });
@@ -312,6 +312,18 @@ class SocketService {
       return false;
     }
   }
+  onDisconnect(callback) {
+    if (!this.socket) {
+      console.error('[SocketService] Socket non connecté');
+      return;
+    }
+  
+    this.socket.off('disconnect');
+    this.socket.on('disconnect', (reason) => {
+      console.log('[SocketService] Déconnexion:', reason);
+      if (callback) callback(reason);
+    });
+  }
 
   // Gestion des commandes
   onNewOrder(callback) {
@@ -319,11 +331,35 @@ class SocketService {
       console.error('[SocketService] Socket non connecté');
       return;
     }
-
+  
+    // Écouter les nouvelles commandes
     this.socket.off('order:available');
     this.socket.on('order:available', (orderData) => {
       console.log('[SocketService] Nouvelle commande:', orderData);
+      
+      // Envoyer un accusé de réception automatique
+      const orderId = orderData.id || orderData.orderId;
+      if (orderId) {
+        this.sendOrderReceipt(orderId);
+      }
+      
+      // Appeler le callback avec les données de commande
       callback(orderData);
+    });
+    
+    // Écouter les demandes d'accusé de réception
+    this.socket.off('order:receipt:request');
+    this.socket.on('order:receipt:request', (data) => {
+      const orderId = data.orderId;
+      if (orderId) {
+        this.sendOrderReceipt(orderId);
+      }
+    });
+    
+    // Écouter les notifications de commande non disponible
+    this.socket.off('order:unavailable');
+    this.socket.on('order:unavailable', (data) => {
+      console.log(`[SocketService] Commande ${data.orderId} n'est plus disponible:`, data.reason);
     });
   }
 
@@ -350,8 +386,118 @@ class SocketService {
         }
       });
     });
+  };
+  // Ajouter cette méthode après sendNewOrder
+async sendOrderReceipt(orderId) {
+  if (!this.socket || !this.isConnected) {
+    console.error("[SocketService] Impossible d'accusé de réception: socket non connecté");
+    return false;
+  }
+  
+  try {
+    this.socket.emit('order:receipt:confirmation', {
+      orderId,
+      timestamp: Date.now()
+    });
+    return true;
+  } catch (error) {
+    console.error('[SocketService] Erreur envoi accusé réception:', error);
+    return false;
+  }
+}
+
+// Ajouter cette méthode
+async updateRideStatus(orderId, status, additionalInfo = {}) {
+  return new Promise((resolve, reject) => {
+    if (!this.socket || !this.isConnected) {
+      reject(new Error('Socket non connecté'));
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      reject(new Error('Timeout mise à jour statut course'));
+    }, 10000);
+
+    this.socket.emit('ride:status:update', {
+      orderId,
+      status,
+      ...additionalInfo,
+      timestamp: Date.now()
+    });
+
+    this.socket.once('ride:status:update:confirmation', (confirmation) => {
+      clearTimeout(timeout);
+      
+      if (confirmation.status === 'success') {
+        resolve(confirmation);
+      } else {
+        reject(new Error(confirmation.error || 'Échec mise à jour statut'));
+      }
+    });
+  });
+}
+
+// Ajouter cette méthode
+async updateDriverLocation(orderId, location, estimatedArrival = null) {
+  return new Promise((resolve, reject) => {
+    if (!this.socket || !this.isConnected) {
+      reject(new Error('Socket non connecté'));
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      reject(new Error('Timeout mise à jour position'));
+    }, 5000);
+
+    const updateData = {
+      orderId,
+      location,
+      timestamp: Date.now()
+    };
+    
+    if (estimatedArrival) {
+      updateData.estimatedArrival = estimatedArrival;
+    }
+
+    this.socket.emit('driver:location:update', updateData);
+
+    this.socket.once('driver:location:update:confirmation', (confirmation) => {
+      clearTimeout(timeout);
+      
+      if (confirmation.status === 'success') {
+        resolve(confirmation);
+      } else {
+        reject(new Error(confirmation.error || 'Échec mise à jour position'));
+      }
+    });
+  });
+};
+// Ajouter à la fin de la classe
+onDriverLocationUpdate(callback) {
+  if (!this.socket) {
+    console.error('[SocketService] Socket non connecté');
+    return;
   }
 
+  this.socket.off('driver:location:update');
+  this.socket.on('driver:location:update', (data) => {
+    console.log('[SocketService] Mise à jour position chauffeur:', data);
+    if (callback) callback(data);
+  });
+}
+
+onRideStatusUpdate(callback) {
+  if (!this.socket) {
+    console.error('[SocketService] Socket non connecté');
+    return;
+  }
+
+  this.socket.off('ride:status:update');
+  this.socket.on('ride:status:update', (data) => {
+    console.log('[SocketService] Mise à jour statut course:', data);
+    if (callback) callback(data);
+  });
+}
   async acceptOrder(orderId, driverId, clientId, driverInfo) {
     return new Promise((resolve, reject) => {
       if (!this.socket || !this.isConnected) {
