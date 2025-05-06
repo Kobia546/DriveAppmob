@@ -114,6 +114,63 @@ const DailyEarningsCard = ({ totalEarnings, completedRides }) => {
     </Animated.View>
   );
 };
+// Composant pour afficher les commandes en attente
+const PendingOrdersNotification = ({ orders, onSelectOrder }) => {
+  if (orders.length === 0) return null;
+
+  return (
+    <View style={styles.pendingOrdersContainer}>
+      <Text style={styles.pendingOrdersTitle}>
+        {orders.length} {orders.length === 1 ? 'commande' : 'commandes'} disponible{orders.length > 1 ? 's' : ''}
+      </Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        {orders.map((order, index) => (
+          <TouchableOpacity 
+            key={order.id || index}
+            style={styles.pendingOrderCard}
+            onPress={() => onSelectOrder(order)}
+          >
+            <View style={styles.locationContainer}>
+              <View style={styles.locationDots}>
+                <View style={[styles.locationDot, { backgroundColor: "#1a73e8" }]} />
+                <View style={styles.locationLine} />
+                <View style={[styles.locationDot, { backgroundColor: "#FF9800" }]} />
+              </View>
+              <View style={styles.addressesContainer}>
+                <Text style={styles.addressText} numberOfLines={1}>
+                  {order.pickupLocation.address}
+                </Text>
+                <Text style={styles.addressText} numberOfLines={1}>
+                  {order.dropoffLocation.address}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.orderDetailsRow}>
+              <View style={styles.detailItem}>
+                <View style={[styles.detailIcon, { backgroundColor: "#E8F5E9" }]}>
+                  <Text style={styles.moneyIcon}>CFA</Text>
+                </View>
+                <Text style={styles.priceText}>{order.price.toFixed(0)}</Text>
+              </View>
+              <View style={styles.detailItem}>
+                <View style={[styles.detailIcon, { backgroundColor: "#E3F2FD" }]}>
+                  <Clock color="#1a73e8" size={14} />
+                </View>
+                <Text style={styles.timeText}>{order.estimatedTime || "15 min"}</Text>
+              </View>
+            </View>
+            <TouchableOpacity 
+              style={styles.selectButton}
+              onPress={() => onSelectOrder(order)}
+            >
+              <Text style={styles.selectButtonText}>Voir détails</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+  );
+};
 
 const AcceptedRidesSection = ({ acceptedRides, onRidePress, isLoading }) => {
   const formatMoney = (amount) => {
@@ -285,6 +342,7 @@ const DriverHomeScreen = ({ navigation }) => {
   const [latlng, setLatLng] = useState({});
   const [orders, setOrders] = useState([]);
   const [driverName, setDriverName] = useState("");
+  const [pendingOrders, setPendingOrders] = useState([]);
   const [isConnecting, setIsConnecting] = useState(false);
   const [dailyStats, setDailyStats] = useState({
     totalEarnings: 0,
@@ -483,9 +541,9 @@ const DriverHomeScreen = ({ navigation }) => {
       // Configurer les écouteurs d'événements une seule fois
       socketService.onNewOrder((orderDetails) => {
         console.log("New order received:", orderDetails);
-        navigation.navigate("AcceptOrderScreen", { orderDetails });
+        // Au lieu de naviguer directement, ajouter à la liste
+        setPendingOrders(currentOrders => [...currentOrders, orderDetails]);
       });
-      
       // Configurer l'écouteur de déconnexion
       socketService.onDisconnect(() => {
         console.log("Socket disconnected, will reconnect automatically");
@@ -514,6 +572,32 @@ const DriverHomeScreen = ({ navigation }) => {
       }, 5000);
     }
   };
+  const handleOrderSelection = (orderDetails) => {
+    // Supprimer la commande sélectionnée de la liste
+    setPendingOrders(currentOrders => 
+      currentOrders.filter(order => order.id !== orderDetails.id)
+    );
+    // Naviguer vers l'écran d'acceptation
+    navigation.navigate("AcceptOrderScreen", { orderDetails });
+  };
+  const addOrderWithExpiration = (orderDetails) => {
+    // Ajouter la commande à la liste
+    setPendingOrders(currentOrders => [...currentOrders, orderDetails]);
+    
+    // Définir un délai d'expiration (par exemple 60 secondes)
+    setTimeout(() => {
+      // Supprimer la commande après expiration
+      setPendingOrders(currentOrders => 
+        currentOrders.filter(order => order.id !== orderDetails.id)
+      );
+    }, 60000); // 60 secondes
+  };
+  
+  // Utiliser cette fonction au lieu de setPendingOrders directement
+  socketService.onNewOrder((orderDetails) => {
+    console.log("New order received:", orderDetails);
+    addOrderWithExpiration(orderDetails);
+  });
 
   // Initialisation principale de l'application
   const initializeApp = async () => {
@@ -578,14 +662,15 @@ const DriverHomeScreen = ({ navigation }) => {
 
   // Configuration des notifications
   useEffect(() => {
+    // Configuration des notifications
     const subscription = Notifications.addNotificationReceivedListener(
       (notification) => {
-        navigation.navigate("AcceptOrderScreen", {
-          orderDetails: notification.request.content.data.orderDetails,
-        });
+        const newOrder = notification.request.content.data.orderDetails;
+        // Au lieu de naviguer directement, ajouter à la liste
+        setPendingOrders(currentOrders => [...currentOrders, newOrder]);
       }
     );
-
+  
     return () => subscription.remove();
   }, []);
 
@@ -641,7 +726,10 @@ const DriverHomeScreen = ({ navigation }) => {
         activeRide={activeRide}
         onPress={() => navigation.navigate("MapScreen", { orderDetails: activeRide })}
       />
-
+        <PendingOrdersNotification 
+      orders={pendingOrders}
+      onSelectOrder={handleOrderSelection}
+      />
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollViewContent}
@@ -702,7 +790,9 @@ const DriverHomeScreen = ({ navigation }) => {
           onRidePress={handleRidePress}
           isLoading={isRefreshing}
         />
+        
       </ScrollView>
+      
     </SafeAreaView>
   );
 };
@@ -755,6 +845,48 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 10,
     right: 10,
+  },
+  pendingOrdersContainer: {
+    backgroundColor: '#fff',
+    margin: 16,
+    padding: 16,
+    borderRadius: 16,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  pendingOrdersTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    color: '#1a73e8',
+  },
+  pendingOrderCard: {
+    backgroundColor: '#f8f9fa',
+    padding: 12,
+    borderRadius: 12,
+    width: 250,
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  orderDetailsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    marginBottom: 12,
+  },
+  selectButton: {
+    backgroundColor: '#1a73e8',
+    padding: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  selectButtonText: {
+    color: 'white',
+    fontWeight: '600',
   },
   headerContent: {
     flexDirection: "row",
