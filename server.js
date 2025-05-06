@@ -2,6 +2,40 @@ const express = require('express');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+// Ajouter cette classe après vos imports
+class OrderManager {
+  constructor() {
+    this.activeOrders = new Map();
+    this.orderDistribution = new Map();
+    this.orderTimeouts = new Map();
+    
+    // Configuration
+    this.config = {
+      orderTimeout: 60 * 1000, // 60 secondes pour accepter une commande
+      maxRetries: 3,           // Nombre maximum de tentatives
+      distributionLog: true,   // Activer les logs détaillés
+    };
+  }
+  // Ajouter cette méthode dans votre classe OrderManager
+recordReceipt(orderId, driverId) {
+  const orderTracking = this.activeOrders.get(orderId);
+  if (!orderTracking) return false;
+
+  orderTracking.distribution.confirmedReceipts++;
+  
+  if (!this.orderDistribution.has(orderId)) {
+    this.orderDistribution.set(orderId, new Set());
+  }
+  
+  this.orderDistribution.get(orderId).add(driverId);
+  
+  console.log(`[OrderManager] Chauffeur ${driverId} a reçu la commande ${orderId}`);
+  return true;
+}
+
+  // Reste des méthodes comme dans l'artifact...
+  // (copiez toutes les méthodes de la classe OrderManager depuis l'artifact "Améliorations du serveur Socket.io")
+}
 
 class EnhancedDriversManager {
   constructor() {
@@ -280,6 +314,7 @@ const io = new Server(httpServer, {
 });
 
 const driversManager = new EnhancedDriversManager();
+const orderManager = new OrderManager();
 const activeOrderTimeouts = new Map();
 
 // Routes de l'API
@@ -377,6 +412,15 @@ io.on('connection', (socket) => {
         error: error.message,
         timestamp: new Date().toISOString()
       });
+    }
+  });
+  socket.on('order:receipt:confirmation', (data) => {
+    const { orderId } = data;
+    const driverId = driversManager.sessions.get(socket.id);
+    
+    if (driverId && orderId) {
+      // Enregistrer la confirmation de réception
+      orderManager.recordReceipt(orderId, driverId);
     }
   });
   socket.on('order:cancel', ({ orderId, userId }) => {
