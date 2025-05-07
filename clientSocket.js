@@ -4,8 +4,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 class SocketService {
   constructor() {
     this.socket = null;
-    this.serverUrl = 'https://driverappmobile.onrender.com';
-    //this.serverUrl = 'http://192.168.80.15:3000';
+    //this.serverUrl = 'https://driverappmobile.onrender.com';
+    this.serverUrl = 'http://192.168.80.15:3000';
     this.isConnected = false;
     this.currentDriverId = null;
     this.connectionState = {
@@ -138,6 +138,16 @@ class SocketService {
       }
     });
   }
+  async clearActiveRide() {
+    try {
+      await AsyncStorage.removeItem('activeRide');
+      return true;
+    } catch (error) {
+      console.error('[SocketService] Erreur suppression course active:', error);
+      return false;
+    }
+  }
+  
 
   handleSocketEvents(resolve, reject) {
     // Événement de connexion réussie
